@@ -30,6 +30,4 @@
 | PUT | `/api/providers/{uuid}` | 同 POST，未帶入的欄位不變更 | 更新 provider |
 | DELETE | `/api/providers/{uuid}` | — | 刪除 provider |
 
-GET / POST / PUT 回應即 `Provider` 本身，欄位同 `a.py` 一致（含 `api_key` 明文），加上 `id`、`created_at`、`updated_at`。
-
 全部需要 `Authorization: Bearer <access_token>`。
