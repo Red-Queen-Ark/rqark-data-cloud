@@ -3,7 +3,7 @@ services:
     image: postgres:16
     container_name: ${PROJECT_NAME}-pgsql
     ports:
-      - 5432:5432
+      - 127.0.0.1:5432:5432
     environment:
       PGDATA: /var/lib/postgresql/data/pgdata
     env_file:
@@ -15,8 +15,14 @@ services:
   redis:
     image: redis:6
     container_name: ${PROJECT_NAME}-redis
+    ports:
+      - 127.0.0.1:6379:6379
+    volumes:
+      - redis_data:/data
     restart: unless-stopped
 
 volumes:
   db_data:
     name: ${PROJECT_NAME}-db-data
+  redis_data:
+    name: ${PROJECT_NAME}-redis-data
