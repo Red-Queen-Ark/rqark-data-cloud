@@ -94,7 +94,29 @@ const docTemplate = `{
             "name": "Authorization",
             "in": "header"
         }
-    }
+    },
+    "tags": [
+        {
+            "description": "Health check endpoint.",
+            "name": "ping"
+        },
+        {
+            "description": "OpenAPI specification endpoints.",
+            "name": "swagger"
+        },
+        {
+            "description": "User accounts.",
+            "name": "users"
+        },
+        {
+            "description": "Groups and their memberships.",
+            "name": "groups"
+        },
+        {
+            "description": "Authentication, registration and password reset.",
+            "name": "auth"
+        }
+    ]
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it

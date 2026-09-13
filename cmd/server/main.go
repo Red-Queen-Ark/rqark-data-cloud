@@ -18,6 +18,17 @@ import (
 // @host						localhost:8080
 // @BasePath					/api
 //
+// @tag.name					ping
+// @tag.description			Health check endpoint.
+// @tag.name					swagger
+// @tag.description			OpenAPI specification endpoints.
+// @tag.name					users
+// @tag.description			User accounts.
+// @tag.name					groups
+// @tag.description			Groups and their memberships.
+// @tag.name					auth
+// @tag.description			Authentication, registration and password reset.
+//
 // @securityDefinitions.apikey	BearerAuth
 // @in							header
 // @name						Authorization
