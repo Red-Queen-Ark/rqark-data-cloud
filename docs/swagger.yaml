@@ -1,10 +1,244 @@
 basePath: /api
 definitions:
+  api.ChangePasswordRequest:
+    properties:
+      new_password:
+        example: staple-correct-battery
+        type: string
+      old_password:
+        example: correct-horse-battery
+        type: string
+    type: object
+  api.CreateGroupRequest:
+    properties:
+      name:
+        example: engineering
+        type: string
+    type: object
+  api.CreateUserRequest:
+    properties:
+      display_name:
+        example: Boss
+        type: string
+      email:
+        example: boss@example.com
+        type: string
+      is_superuser:
+        example: false
+        type: boolean
+      password:
+        example: correct-horse-battery
+        type: string
+      username:
+        example: boss
+        type: string
+    type: object
+  api.ForgotPasswordRequest:
+    properties:
+      email:
+        example: boss@example.com
+        type: string
+    type: object
+  api.GroupDTO:
+    properties:
+      created_at:
+        type: string
+      id:
+        example: 9b2f5c1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      name:
+        example: engineering
+        type: string
+      updated_at:
+        type: string
+    type: object
+  api.LoginRequest:
+    properties:
+      login:
+        example: boss@example.com
+        type: string
+      password:
+        example: correct-horse-battery
+        type: string
+    type: object
+  api.MessageResponse:
+    properties:
+      message:
+        example: Password updated.
+        type: string
+    type: object
+  api.Page-api_GroupDTO:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.GroupDTO'
+        type: array
+      limit:
+        example: 20
+        type: integer
+      offset:
+        example: 0
+        type: integer
+      total:
+        example: 128
+        type: integer
+    type: object
+  api.Page-api_UserDTO:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.UserDTO'
+        type: array
+      limit:
+        example: 20
+        type: integer
+      offset:
+        example: 0
+        type: integer
+      total:
+        example: 128
+        type: integer
+    type: object
   api.PingResponse:
     properties:
       message:
         example: pong
         type: string
+    type: object
+  api.RefreshRequest:
+    properties:
+      refresh_token:
+        example: 9f2c1a1b1c1d1e1f1a1b1c1d1e1f1a1b
+        type: string
+    type: object
+  api.RegisterRequest:
+    properties:
+      display_name:
+        example: New Comer
+        type: string
+      email:
+        example: newcomer@example.com
+        type: string
+      password:
+        example: correct-horse-battery
+        type: string
+      username:
+        example: newcomer
+        type: string
+    type: object
+  api.ResetPasswordRequest:
+    properties:
+      new_password:
+        example: staple-correct-battery
+        type: string
+      token:
+        example: 9f2c1a1b1c1d1e1f1a1b1c1d1e1f1a1b
+        type: string
+    type: object
+  api.SetPasswordRequest:
+    properties:
+      new_password:
+        example: staple-correct-battery
+        type: string
+    type: object
+  api.TokenPair:
+    properties:
+      access_token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      refresh_token:
+        example: 9f2c1a1b1c1d1e1f1a1b1c1d1e1f1a1b
+        type: string
+    type: object
+  api.UpdateGroupRequest:
+    properties:
+      name:
+        type: string
+    type: object
+  api.UpdateMeRequest:
+    properties:
+      display_name:
+        type: string
+      email:
+        type: string
+      is_superuser:
+        type: boolean
+      username:
+        type: string
+    type: object
+  api.UpdateUserRequest:
+    properties:
+      display_name:
+        type: string
+      email:
+        type: string
+      is_active:
+        type: boolean
+      is_staff:
+        type: boolean
+      is_superuser:
+        type: boolean
+      username:
+        type: string
+    type: object
+  api.UserDTO:
+    properties:
+      created_at:
+        type: string
+      display_name:
+        example: Boss
+        type: string
+      email:
+        example: boss@example.com
+        type: string
+      id:
+        example: 3f1a5c1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      is_active:
+        example: true
+        type: boolean
+      is_staff:
+        example: false
+        type: boolean
+      is_superuser:
+        example: true
+        type: boolean
+      updated_at:
+        type: string
+      username:
+        example: boss
+        type: string
+    type: object
+  utils.Code:
+    enum:
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - BAD_REQUEST
+    - CONFLICT
+    - LAST_SUPERUSER
+    - INTERNAL
+    type: string
+    x-enum-varnames:
+    - Unauthorized
+    - Forbidden
+    - BadRequest
+    - Conflict
+    - LastSuperuser
+    - Internal
+  utils.Error:
+    properties:
+      code:
+        allOf:
+        - $ref: '#/definitions/utils.Code'
+        example: UNAUTHORIZED
+      message:
+        example: Invalid username or password
+        type: string
+    type: object
+  utils.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/utils.Error'
     type: object
 host: localhost:8080
 info:
@@ -13,6 +247,496 @@ info:
   title: rqark-data-cloud
   version: "1.0"
 paths:
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Answers 204 whether or not the email exists, so the endpoint cannot
+        be used to enumerate accounts. A reset link is generated for an existing active
+        account only.
+      parameters:
+      - description: Email address
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.ForgotPasswordRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      summary: Request a password reset
+      tags:
+      - auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Accepts a username or an email as login. A wrong password, an unknown
+        account and a deactivated account all answer 401 with the same body.
+      parameters:
+      - description: Credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.TokenPair'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      summary: Log in
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Consumes the refresh token and returns a new pair. The old token
+        cannot be used again.
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.TokenPair'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      summary: Refresh a token pair
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Creates an ordinary user and returns it. No token is issued; the
+        caller logs in afterwards.
+      parameters:
+      - description: Account to create
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/api.UserDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      summary: Register
+      tags:
+      - auth
+  /auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Consumes the reset token and stores the new password. An unknown,
+        expired or already used token answers 400 with the same body. No refresh token
+        is revoked.
+      parameters:
+      - description: Reset token and new password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      summary: Reset a password
+      tags:
+      - auth
+  /groups:
+    get:
+      description: Requires a bearer token. Returns groups only, never their members.
+      parameters:
+      - description: Page size (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Number of groups to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Page-api_GroupDTO'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List groups
+      tags:
+      - groups
+    post:
+      consumes:
+      - application/json
+      description: Superuser only. Answers 201 with a Location header pointing at
+        the new group.
+      parameters:
+      - description: Group to create
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: URL of the created group
+              type: string
+          schema:
+            $ref: '#/definitions/api.GroupDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a group
+      tags:
+      - groups
+  /groups/{uuid}:
+    delete:
+      description: 'Superuser only. Hard delete: the group and its memberships are
+        removed.'
+      parameters:
+      - description: Group ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a group
+      tags:
+      - groups
+    get:
+      description: Requires a bearer token.
+      parameters:
+      - description: Group ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.GroupDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a group
+      tags:
+      - groups
+    patch:
+      consumes:
+      - application/json
+      description: Superuser only.
+      parameters:
+      - description: Group ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: New name
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.GroupDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Rename a group
+      tags:
+      - groups
+  /groups/{uuid}/users:
+    get:
+      description: 'Superuser only: the response carries user DTOs, so a plain token
+        must not reach it.'
+      parameters:
+      - description: Group ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Page size (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Number of members to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Page-api_UserDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List the members of a group
+      tags:
+      - groups
+  /groups/{uuid}/users/{user_uuid}:
+    delete:
+      description: Superuser only. Removing a membership that does not exist answers
+        204 as well.
+      parameters:
+      - description: Group ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: User ID
+        format: uuid
+        in: path
+        name: user_uuid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Remove a group member
+      tags:
+      - groups
+    put:
+      description: 'Superuser only. Idempotent: adding an existing member answers
+        204 as well.'
+      parameters:
+      - description: Group ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: User ID
+        format: uuid
+        in: path
+        name: user_uuid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Add a group member
+      tags:
+      - groups
   /ping:
     get:
       description: Returns pong. Does not touch PostgreSQL or Redis.
@@ -52,6 +776,382 @@ paths:
       summary: OpenAPI specification (YAML)
       tags:
       - swagger
+  /users:
+    get:
+      description: Superuser only. Filters by is_active and searches username, email
+        and display name with q.
+      parameters:
+      - description: Page size (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Number of users to skip
+        in: query
+        name: offset
+        type: integer
+      - description: Keep only active or only inactive users
+        in: query
+        name: is_active
+        type: boolean
+      - description: Search term for username, email or display name
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Page-api_UserDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List users
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      description: Superuser only. Answers 201 with a Location header pointing at
+        the new user.
+      parameters:
+      - description: User to create
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: URL of the created user
+              type: string
+          schema:
+            $ref: '#/definitions/api.UserDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a user
+      tags:
+      - users
+  /users/{uuid}:
+    delete:
+      description: 'Superuser only. Soft delete: the row stays and is_active becomes
+        false. Use PATCH to restore. A caller cannot deactivate itself, and the last
+        active superuser cannot be deactivated.'
+      parameters:
+      - description: User ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Deactivate a user
+      tags:
+      - users
+    get:
+      description: Superuser only.
+      parameters:
+      - description: User ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.UserDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a user
+      tags:
+      - users
+    patch:
+      consumes:
+      - application/json
+      description: Superuser only. Every field is optional; this is the only path
+        that changes is_superuser. Is_active false deactivates the account and true
+        restores it.
+      parameters:
+      - description: User ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Fields to change
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.UserDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a user
+      tags:
+      - users
+  /users/{uuid}/password:
+    put:
+      consumes:
+      - application/json
+      description: Superuser only. The current password is not required and no refresh
+        token is revoked.
+      parameters:
+      - description: User ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: New password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.SetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Set a user's password
+      tags:
+      - users
+  /users/me:
+    get:
+      description: Returns the account behind the access token.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.UserDTO'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get the current user
+      tags:
+      - users
+    patch:
+      consumes:
+      - application/json
+      description: Changes username, email and display name. Sending is_superuser
+        is rejected with 403 rather than ignored.
+      parameters:
+      - description: Fields to change
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateMeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.UserDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update the current user
+      tags:
+      - users
+  /users/me/password:
+    put:
+      consumes:
+      - application/json
+      description: Requires the current password. No refresh token is revoked, so
+        other devices stay logged in.
+      parameters:
+      - description: Current and new password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Change the current user's password
+      tags:
+      - users
 securityDefinitions:
   BearerAuth:
     description: Bearer <access_token>
