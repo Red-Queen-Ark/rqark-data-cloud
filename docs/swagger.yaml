@@ -1,0 +1,35 @@
+basePath: /api
+definitions:
+  api.PingResponse:
+    properties:
+      message:
+        example: pong
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Data cloud API.
+  title: rqark-data-cloud
+  version: "1.0"
+paths:
+  /ping:
+    get:
+      description: Returns pong. Does not touch PostgreSQL or Redis.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.PingResponse'
+      summary: Health check
+      tags:
+      - meta
+securityDefinitions:
+  BearerAuth:
+    description: Bearer <access_token>
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
