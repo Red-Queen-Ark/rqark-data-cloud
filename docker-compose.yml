@@ -5,7 +5,8 @@ services:
     ports:
       - 127.0.0.1:5432:5432
     environment:
-      PGDATA: /var/lib/postgresql/data/pgdata
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_SERVER=localhost
     env_file:
       - ./.env
     volumes:
@@ -17,8 +18,27 @@ services:
     container_name: ${PROJECT_NAME}-redis
     ports:
       - 127.0.0.1:6379:6379
+    environment:
+      - REDIS_SERVER=redis
     volumes:
       - redis_data:/data
+    restart: unless-stopped
+
+  server:
+    build:
+      context: .
+      dockerfile: docker/dockerfile
+    container_name: ${PROJECT_NAME}-server
+    ports:
+      - 127.0.0.1:${PORT}:${PORT}
+    environment:
+      - POSTGRES_SERVER=pgsql
+      - REDIS_SERVER=redis
+    env_file:
+      - ./.env
+    depends_on:
+      - pgsql
+      - redis
     restart: unless-stopped
 
 volumes:
