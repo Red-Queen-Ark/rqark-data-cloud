@@ -11,3 +11,4 @@
 # 代碼守則
 1. 改動代碼後運行 `go fmt`
 2. 加或改 API（endpoint / swagger 註解）後運行 `go generate ./...`
+3. 注解用英文寫，面向國際
