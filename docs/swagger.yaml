@@ -25,7 +25,7 @@ paths:
             $ref: '#/definitions/api.PingResponse'
       summary: Health check
       tags:
-      - meta
+      - ping
   /swagger.json:
     get:
       description: Returns the generated Swagger 2.0 document describing this API.
@@ -38,7 +38,7 @@ paths:
             type: string
       summary: OpenAPI specification (JSON)
       tags:
-      - meta
+      - swagger
   /swagger.yml:
     get:
       description: Returns the generated Swagger 2.0 document describing this API.
@@ -51,7 +51,7 @@ paths:
             type: string
       summary: OpenAPI specification (YAML)
       tags:
-      - meta
+      - swagger
 securityDefinitions:
   BearerAuth:
     description: Bearer <access_token>

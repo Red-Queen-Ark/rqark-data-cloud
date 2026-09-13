@@ -22,7 +22,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "meta"
+                    "ping"
                 ],
                 "summary": "Health check",
                 "responses": {
@@ -42,7 +42,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "meta"
+                    "swagger"
                 ],
                 "summary": "OpenAPI specification (JSON)",
                 "responses": {
@@ -62,7 +62,7 @@ const docTemplate = `{
                     "application/yaml"
                 ],
                 "tags": [
-                    "meta"
+                    "swagger"
                 ],
                 "summary": "OpenAPI specification (YAML)",
                 "responses": {

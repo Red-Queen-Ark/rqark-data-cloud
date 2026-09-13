@@ -20,7 +20,7 @@ var (
 //
 //	@Summary		OpenAPI specification (JSON)
 //	@Description	Returns the generated Swagger 2.0 document describing this API.
-//	@Tags			meta
+//	@Tags			swagger
 //	@Produce		application/json
 //	@Success		200	{string}	string	"Swagger 2.0 document as JSON"
 //	@Router			/swagger.json [get]
@@ -32,7 +32,7 @@ func SwaggerJSON(c *gin.Context) {
 //
 //	@Summary		OpenAPI specification (YAML)
 //	@Description	Returns the generated Swagger 2.0 document describing this API.
-//	@Tags			meta
+//	@Tags			swagger
 //	@Produce		application/yaml
 //	@Success		200	{string}	string	"Swagger 2.0 document as YAML"
 //	@Router			/swagger.yml [get]

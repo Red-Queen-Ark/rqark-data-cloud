@@ -14,7 +14,7 @@ type PingResponse struct {
 //
 //	@Summary		Health check
 //	@Description	Returns pong. Does not touch PostgreSQL or Redis.
-//	@Tags			meta
+//	@Tags			ping
 //	@Produce		json
 //	@Success		200	{object}	PingResponse
 //	@Router			/ping [get]
