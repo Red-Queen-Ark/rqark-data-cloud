@@ -67,38 +67,6 @@ definitions:
         example: Password updated.
         type: string
     type: object
-  api.Page-api_GroupDTO:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/api.GroupDTO'
-        type: array
-      limit:
-        example: 20
-        type: integer
-      offset:
-        example: 0
-        type: integer
-      total:
-        example: 128
-        type: integer
-    type: object
-  api.Page-api_UserDTO:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/api.UserDTO'
-        type: array
-      limit:
-        example: 20
-        type: integer
-      offset:
-        example: 0
-        type: integer
-      total:
-        example: 128
-        type: integer
-    type: object
   api.PingResponse:
     properties:
       message:
@@ -239,6 +207,38 @@ definitions:
     properties:
       error:
         $ref: '#/definitions/utils.Error'
+    type: object
+  utils.Page-api_GroupDTO:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.GroupDTO'
+        type: array
+      limit:
+        example: 20
+        type: integer
+      offset:
+        example: 0
+        type: integer
+      total:
+        example: 128
+        type: integer
+    type: object
+  utils.Page-api_UserDTO:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.UserDTO'
+        type: array
+      limit:
+        example: 20
+        type: integer
+      offset:
+        example: 0
+        type: integer
+      total:
+        example: 128
+        type: integer
     type: object
 host: localhost:8080
 info:
@@ -430,7 +430,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.Page-api_GroupDTO'
+            $ref: '#/definitions/utils.Page-api_GroupDTO'
         "401":
           description: Unauthorized
           schema:
@@ -634,7 +634,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.Page-api_UserDTO'
+            $ref: '#/definitions/utils.Page-api_UserDTO'
         "400":
           description: Bad Request
           schema:
@@ -803,7 +803,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.Page-api_UserDTO'
+            $ref: '#/definitions/utils.Page-api_UserDTO'
         "400":
           description: Bad Request
           schema:

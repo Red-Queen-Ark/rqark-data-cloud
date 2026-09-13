@@ -290,7 +290,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.Page-api_GroupDTO"
+                            "$ref": "#/definitions/utils.Page-api_GroupDTO"
                         }
                     },
                     "401": {
@@ -601,7 +601,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.Page-api_UserDTO"
+                            "$ref": "#/definitions/utils.Page-api_UserDTO"
                         }
                     },
                     "400": {
@@ -856,7 +856,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.Page-api_UserDTO"
+                            "$ref": "#/definitions/utils.Page-api_UserDTO"
                         }
                     },
                     "400": {
@@ -1481,52 +1481,6 @@ const docTemplate = `{
                 }
             }
         },
-        "api.Page-api_GroupDTO": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/api.GroupDTO"
-                    }
-                },
-                "limit": {
-                    "type": "integer",
-                    "example": 20
-                },
-                "offset": {
-                    "type": "integer",
-                    "example": 0
-                },
-                "total": {
-                    "type": "integer",
-                    "example": 128
-                }
-            }
-        },
-        "api.Page-api_UserDTO": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/api.UserDTO"
-                    }
-                },
-                "limit": {
-                    "type": "integer",
-                    "example": 20
-                },
-                "offset": {
-                    "type": "integer",
-                    "example": 0
-                },
-                "total": {
-                    "type": "integer",
-                    "example": 128
-                }
-            }
-        },
         "api.PingResponse": {
             "type": "object",
             "properties": {
@@ -1729,6 +1683,52 @@ const docTemplate = `{
             "properties": {
                 "error": {
                     "$ref": "#/definitions/utils.Error"
+                }
+            }
+        },
+        "utils.Page-api_GroupDTO": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.GroupDTO"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "offset": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 128
+                }
+            }
+        },
+        "utils.Page-api_UserDTO": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.UserDTO"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "offset": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 128
                 }
             }
         }

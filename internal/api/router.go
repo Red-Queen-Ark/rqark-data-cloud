@@ -1,0 +1,102 @@
+package api
+
+import (
+	"context"
+	"errors"
+	"log"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+
+	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
+	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/middlewares"
+	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
+	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/service"
+	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
+)
+
+// APIRouter registers every route of the service.
+func APIRouter(r *gin.Engine) {
+	PingRouter(r)
+	SwaggerRouter(r)
+	AuthRouter(r)
+	UsersRouter(r)
+	GroupsRouter(r)
+}
+
+// LoadUser loads the user an access token names. It is the database hook the
+// auth middleware calls on every authenticated request.
+func LoadUser(ctx context.Context, id uuid.UUID) (*repository.User, error) {
+	return repository.GetUserByID(ctx, config.DB, id)
+}
+
+// authRequired guards a route with bearer authentication.
+func authRequired() gin.HandlerFunc {
+	return middlewares.Auth([]byte(config.SecretKey), LoadUser)
+}
+
+// superuserRequired guards a route with bearer authentication followed by the
+// superuser check.
+func superuserRequired() []gin.HandlerFunc {
+	return []gin.HandlerFunc{authRequired(), middlewares.RequireSuperuser()}
+}
+
+// parseUUIDParam reads a UUID path parameter. It answers 400 and reports false
+// when the value is not a UUID.
+func parseUUIDParam(c *gin.Context, name string) (uuid.UUID, bool) {
+	id, err := uuid.Parse(c.Param(name))
+	if err != nil {
+		abortBadRequest(c, name+" must be a UUID.")
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+// abortInternal logs err and answers 500.
+func abortInternal(c *gin.Context, err error) {
+	log.Printf("api: internal error: %v", err)
+	utils.Abort(c, utils.Internal, "Internal server error.")
+}
+
+// abortBadRequest answers 400 for a body that cannot be decoded or a path
+// parameter that is not a UUID.
+func abortBadRequest(c *gin.Context, message string) {
+	utils.Abort(c, utils.BadRequest, message)
+}
+
+// abortError maps the errors the service and repository layers return onto the
+// error envelope. An unrecognised error is logged and reported as INTERNAL.
+func abortError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, service.ErrUsernameTaken):
+		utils.Abort(c, utils.Conflict, "Username is already taken.")
+	case errors.Is(err, service.ErrEmailTaken):
+		utils.Abort(c, utils.Conflict, "Email is already taken.")
+	case errors.Is(err, service.ErrGroupNameTaken):
+		utils.Abort(c, utils.Conflict, "Group name is already taken.")
+	case errors.Is(err, repository.ErrUserNotFound):
+		utils.Abort(c, utils.BadRequest, "User not found.")
+	case errors.Is(err, repository.ErrGroupNotFound):
+		utils.Abort(c, utils.BadRequest, "Group not found.")
+	case errors.Is(err, service.ErrOldPassword):
+		utils.Abort(c, utils.BadRequest, "Current password is incorrect.")
+	case errors.Is(err, service.ErrLastSuperuser):
+		utils.Abort(c, utils.LastSuperuser, "The last active superuser cannot be removed.")
+	case errors.Is(err, service.ErrSelfDemote):
+		utils.Abort(c, utils.Forbidden, "You cannot change your own superuser status.")
+	case errors.Is(err, service.ErrSelfDeactivate):
+		utils.Abort(c, utils.Conflict, "You cannot deactivate your own account.")
+
+	default:
+		var policy *service.PolicyError
+		var validation *service.ValidationError
+		switch {
+		case errors.As(err, &policy):
+			utils.Abort(c, utils.BadRequest, policy.Error())
+		case errors.As(err, &validation):
+			utils.Abort(c, utils.BadRequest, validation.Message)
+		default:
+			abortInternal(c, err)
+		}
+	}
+}

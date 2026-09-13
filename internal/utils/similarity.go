@@ -3,27 +3,21 @@ package utils
 // quickRatio ports SequenceMatcher.quick_ratio from CPython's difflib. It
 // counts the characters of a that are available in b and returns twice that
 // count divided by the combined length, an upper bound of the real similarity
-// ratio.
+// ratio. Each character of b may only be matched once.
 func quickRatio(a, b []rune) float64 {
 	if len(a) == 0 && len(b) == 0 {
 		return 1
 	}
 
-	fullBCount := make(map[rune]int, len(b))
+	avail := make(map[rune]int, len(b))
 	for _, r := range b {
-		fullBCount[r]++
+		avail[r]++
 	}
 
-	avail := make(map[rune]int)
 	matches := 0
 	for _, r := range a {
-		if n := avail[r]; n > 0 {
-			avail[r] = n - 1
-			matches++
-			continue
-		}
-		if n := fullBCount[r]; n > 0 {
-			avail[r] = n - 1
+		if avail[r] > 0 {
+			avail[r]--
 			matches++
 		}
 	}

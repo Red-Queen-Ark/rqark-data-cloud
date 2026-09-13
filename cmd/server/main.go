@@ -12,7 +12,7 @@ import (
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
 )
 
-//go:generate go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g main.go -d .,../../internal/api -o ../../docs --parseInternal
+//go:generate go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g main.go -d .,../../internal/api,../../internal/utils -o ../../docs --parseInternal
 
 // @title						rqark-data-cloud
 // @version					1.0
@@ -44,8 +44,7 @@ func main() {
 	config.InitRedis()
 
 	r := gin.Default()
-	api.PingRouter(r)
-	api.SwaggerRouter(r)
+	api.APIRouter(r)
 
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(
 		swaggerFiles.Handler,
