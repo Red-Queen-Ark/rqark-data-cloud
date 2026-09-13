@@ -1,12 +1,15 @@
 package main
 
 import (
+	"log"
+
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/api"
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
+	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
 )
 
 //go:generate go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g main.go -d .,../../internal/api -o ../../docs --parseInternal
@@ -28,13 +31,16 @@ import (
 // @tag.description			Groups and their memberships.
 // @tag.name					auth
 // @tag.description			Authentication, registration and password reset.
-//
+
 // @securityDefinitions.apikey	BearerAuth
 // @in							header
 // @name						Authorization
 // @description				Bearer <access_token>
 func main() {
 	config.InitDatabase()
+	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}); err != nil {
+		log.Fatalf("main: automigrate: %v", err)
+	}
 	config.InitRedis()
 
 	r := gin.Default()
