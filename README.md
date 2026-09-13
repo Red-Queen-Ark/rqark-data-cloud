@@ -1,3 +1,3 @@
 # rqark-data-cloud
 
-gin + gorm + gin-jwt
+gin + gorm + go-redis
