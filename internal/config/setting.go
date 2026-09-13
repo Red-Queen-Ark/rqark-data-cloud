@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -16,6 +17,10 @@ var (
 	PostgresPassword string
 	RedisServer      string
 	RedisPort        int
+	SecretKey        string
+	ResetPasswordURL string
+	AccessTokenTTL   time.Duration
+	RefreshTokenTTL  time.Duration
 )
 
 func init() {
@@ -29,6 +34,10 @@ func init() {
 	PostgresPassword = GetEnv("POSTGRES_PASSWORD", "")
 	RedisServer = GetEnv("REDIS_SERVER", "localhost")
 	RedisPort = GetEnvInt("REDIS_PORT", 6379)
+	SecretKey = GetEnv("SECRET_KEY", "")
+	ResetPasswordURL = GetEnv("RESET_PASSWORD_URL", "")
+	AccessTokenTTL = 15 * time.Minute
+	RefreshTokenTTL = 720 * time.Hour
 }
 
 func GetEnv(key, fallback string) string {
