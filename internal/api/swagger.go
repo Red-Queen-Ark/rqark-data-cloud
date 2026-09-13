@@ -16,6 +16,30 @@ var (
 	swaggerYAML []byte
 )
 
+// SwaggerJSON serves the generated OpenAPI 2.0 document as JSON.
+//
+//	@Summary		OpenAPI specification (JSON)
+//	@Description	Returns the generated Swagger 2.0 document describing this API.
+//	@Tags			meta
+//	@Produce		application/json
+//	@Success		200	{string}	string	"Swagger 2.0 document as JSON"
+//	@Router			/swagger.json [get]
+func SwaggerJSON(c *gin.Context) {
+	c.Data(http.StatusOK, "application/json; charset=utf-8", []byte(swaggerJSON))
+}
+
+// SwaggerYAML serves the generated OpenAPI 2.0 document as YAML.
+//
+//	@Summary		OpenAPI specification (YAML)
+//	@Description	Returns the generated Swagger 2.0 document describing this API.
+//	@Tags			meta
+//	@Produce		application/yaml
+//	@Success		200	{string}	string	"Swagger 2.0 document as YAML"
+//	@Router			/swagger.yml [get]
+func SwaggerYAML(c *gin.Context) {
+	c.Data(http.StatusOK, "application/yaml; charset=utf-8", swaggerYAML)
+}
+
 func SwaggerRouter(r *gin.Engine) {
 	doc, err := swag.ReadDoc()
 	if err != nil {
@@ -35,11 +59,6 @@ func SwaggerRouter(r *gin.Engine) {
 	}
 	swaggerYAML = yml
 
-	r.GET("/api/swagger.json", func(c *gin.Context) {
-		c.Data(http.StatusOK, "application/json; charset=utf-8", []byte(swaggerJSON))
-	})
-
-	r.GET("/api/swagger.yml", func(c *gin.Context) {
-		c.Data(http.StatusOK, "application/yaml; charset=utf-8", swaggerYAML)
-	})
+	r.GET("/api/swagger.json", SwaggerJSON)
+	r.GET("/api/swagger.yml", SwaggerYAML)
 }

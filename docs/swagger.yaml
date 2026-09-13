@@ -26,6 +26,32 @@ paths:
       summary: Health check
       tags:
       - meta
+  /swagger.json:
+    get:
+      description: Returns the generated Swagger 2.0 document describing this API.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Swagger 2.0 document as JSON
+          schema:
+            type: string
+      summary: OpenAPI specification (JSON)
+      tags:
+      - meta
+  /swagger.yml:
+    get:
+      description: Returns the generated Swagger 2.0 document describing this API.
+      produces:
+      - application/yaml
+      responses:
+        "200":
+          description: Swagger 2.0 document as YAML
+          schema:
+            type: string
+      summary: OpenAPI specification (YAML)
+      tags:
+      - meta
 securityDefinitions:
   BearerAuth:
     description: Bearer <access_token>

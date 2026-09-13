@@ -34,6 +34,46 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/swagger.json": {
+            "get": {
+                "description": "Returns the generated Swagger 2.0 document describing this API.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "meta"
+                ],
+                "summary": "OpenAPI specification (JSON)",
+                "responses": {
+                    "200": {
+                        "description": "Swagger 2.0 document as JSON",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/swagger.yml": {
+            "get": {
+                "description": "Returns the generated Swagger 2.0 document describing this API.",
+                "produces": [
+                    "application/yaml"
+                ],
+                "tags": [
+                    "meta"
+                ],
+                "summary": "OpenAPI specification (YAML)",
+                "responses": {
+                    "200": {
+                        "description": "Swagger 2.0 document as YAML",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
