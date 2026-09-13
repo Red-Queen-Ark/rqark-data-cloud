@@ -12,3 +12,4 @@
 1. 改動代碼後運行 `go fmt`
 2. 加或改 API（endpoint / swagger 註解）後運行 `go generate ./...`
 3. 注解用英文寫，面向國際
+4. `.env` 係默認配置，跟 repo 入 git；唔准加落 `.gitignore`，亦唔准當佢未追蹤
