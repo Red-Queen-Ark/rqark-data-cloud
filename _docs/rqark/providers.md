@@ -4,6 +4,7 @@
 | 欄位 | 型別 | 備註 |
 |---|---|---|
 | `id` | UUID | PK |
+| `user_id` | UUID | FK → `users.id`，index，擁有者 |
 | `name` | string(255) | 預設 `''` |
 | `model_name` | string(255) | |
 | `api_key` | string(255) | |
@@ -31,3 +32,10 @@
 | DELETE | `/api/providers/{uuid}` | — | 刪除 provider |
 
 全部需要 `Authorization: Bearer <access_token>`。
+
+## 規則
+
+- **每個 provider 屬於 token 對應嘅用戶**（`user_id`）—— `api_key` 係憑證，所有查詢都帶 `user_id = <token 用戶>`，唔會撈到其他用戶嘅 provider；用其他用戶嘅 `uuid` 回 `404`（唔回 `403`，避免枚舉出 id）。
+- `name` 冇 unique —— `Provider.__post_init__` 會將空 `name` 補成 `model_name`，同一個 model 可以有多條（唔同 `api_key` / `api_base`），排序靠 `priority`。
+- 無設定嘅 nullable 欄位照 `null` 存，唔好當 `0` / `false` 解讀。
+- 回應一律唔含 `user_id`，同 `agents.md` / `sessions.md` 一致。
