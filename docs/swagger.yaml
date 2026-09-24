@@ -1,5 +1,29 @@
 basePath: /api
 definitions:
+  api.AgentDTO:
+    properties:
+      created_at:
+        type: string
+      description:
+        example: ""
+        type: string
+      id:
+        example: 5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      name:
+        example: Angel Holiday
+        type: string
+      prompts:
+        items:
+          $ref: '#/definitions/repository.AgentPrompt'
+        type: array
+      tools:
+        items:
+          $ref: '#/definitions/repository.AgentTool'
+        type: array
+      updated_at:
+        type: string
+    type: object
   api.ChangePasswordRequest:
     properties:
       new_password:
@@ -8,6 +32,22 @@ definitions:
       old_password:
         example: correct-horse-battery
         type: string
+    type: object
+  api.CreateAgentRequest:
+    properties:
+      description:
+        type: string
+      name:
+        example: Angel Holiday
+        type: string
+      prompts:
+        items:
+          $ref: '#/definitions/repository.AgentPrompt'
+        type: array
+      tools:
+        items:
+          $ref: '#/definitions/repository.AgentTool'
+        type: array
     type: object
   api.CreateGroupRequest:
     properties:
@@ -118,6 +158,21 @@ definitions:
         example: 9f2c1a1b1c1d1e1f1a1b1c1d1e1f1a1b
         type: string
     type: object
+  api.UpdateAgentRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+      prompts:
+        items:
+          $ref: '#/definitions/repository.AgentPrompt'
+        type: array
+      tools:
+        items:
+          $ref: '#/definitions/repository.AgentTool'
+        type: array
+    type: object
   api.UpdateGroupRequest:
     properties:
       name:
@@ -177,11 +232,28 @@ definitions:
         example: boss
         type: string
     type: object
+  repository.AgentPrompt:
+    properties:
+      name:
+        type: string
+      params:
+        additionalProperties: {}
+        type: object
+    type: object
+  repository.AgentTool:
+    properties:
+      name:
+        type: string
+      params:
+        additionalProperties: {}
+        type: object
+    type: object
   utils.Code:
     enum:
     - UNAUTHORIZED
     - FORBIDDEN
     - BAD_REQUEST
+    - NOT_FOUND
     - CONFLICT
     - LAST_SUPERUSER
     - INTERNAL
@@ -190,6 +262,7 @@ definitions:
     - Unauthorized
     - Forbidden
     - BadRequest
+    - NotFound
     - Conflict
     - LastSuperuser
     - Internal
@@ -207,6 +280,22 @@ definitions:
     properties:
       error:
         $ref: '#/definitions/utils.Error'
+    type: object
+  utils.Page-api_AgentDTO:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.AgentDTO'
+        type: array
+      limit:
+        example: 20
+        type: integer
+      offset:
+        example: 0
+        type: integer
+      total:
+        example: 128
+        type: integer
     type: object
   utils.Page-api_GroupDTO:
     properties:
@@ -247,6 +336,205 @@ info:
   title: rqark-data-cloud
   version: "1.0"
 paths:
+  /agents:
+    get:
+      description: Returns the agents owned by the caller, ordered by name.
+      parameters:
+      - description: Page size (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Number of agents to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Page-api_AgentDTO'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List agents
+      tags:
+      - agents
+    post:
+      consumes:
+      - application/json
+      description: The agent belongs to the caller. Answers 201 with a Location header
+        pointing at the new agent.
+      parameters:
+      - description: Agent to create
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateAgentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: URL of the created agent
+              type: string
+          schema:
+            $ref: '#/definitions/api.AgentDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create an agent
+      tags:
+      - agents
+  /agents/{uuid}:
+    delete:
+      description: Hard delete of one of the caller's agents. Another user's agent
+        is reported as 404.
+      parameters:
+      - description: Agent ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete an agent
+      tags:
+      - agents
+    get:
+      description: Returns one of the caller's agents. Another user's agent is reported
+        as 404.
+      parameters:
+      - description: Agent ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.AgentDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get an agent
+      tags:
+      - agents
+    put:
+      consumes:
+      - application/json
+      description: Every field is optional and a field that is absent is left untouched.
+        Another user's agent is reported as 404.
+      parameters:
+      - description: Agent ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Fields to change
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateAgentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.AgentDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update an agent
+      tags:
+      - agents
   /auth/forgot-password:
     post:
       consumes:
@@ -1170,3 +1458,5 @@ tags:
   name: groups
 - description: Authentication, registration and password reset.
   name: auth
+- description: Agents owned by the authenticated user.
+  name: agents

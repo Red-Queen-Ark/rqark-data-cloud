@@ -12,7 +12,7 @@ import (
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
 )
 
-//go:generate go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g main.go -d .,../../internal/api,../../internal/utils -o ../../docs --parseInternal
+//go:generate go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g main.go -d .,../../internal/api,../../internal/utils,../../internal/repository -o ../../docs --parseInternal
 
 // @title						rqark-data-cloud
 // @version					1.0
@@ -31,6 +31,8 @@ import (
 // @tag.description			Groups and their memberships.
 // @tag.name					auth
 // @tag.description			Authentication, registration and password reset.
+// @tag.name					agents
+// @tag.description			Agents owned by the authenticated user.
 
 // @securityDefinitions.apikey	BearerAuth
 // @in							header
@@ -38,7 +40,7 @@ import (
 // @description				Bearer <access_token>
 func main() {
 	config.InitDatabase()
-	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}); err != nil {
+	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}, &repository.Agent{}); err != nil {
 		log.Fatalf("main: automigrate: %v", err)
 	}
 	config.InitRedis()

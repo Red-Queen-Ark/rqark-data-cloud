@@ -19,6 +19,9 @@ const (
 	Forbidden Code = "FORBIDDEN"
 	// BadRequest is used for malformed or invalid input.
 	BadRequest Code = "BAD_REQUEST"
+	// NotFound is used when the addressed resource does not exist or is not
+	// visible to the caller.
+	NotFound Code = "NOT_FOUND"
 	// Conflict is used when the request conflicts with the current state.
 	Conflict Code = "CONFLICT"
 	// LastSuperuser is used when an operation would leave no active superuser.
@@ -32,6 +35,7 @@ var statuses = map[Code]int{
 	Unauthorized:  http.StatusUnauthorized,
 	Forbidden:     http.StatusForbidden,
 	BadRequest:    http.StatusBadRequest,
+	NotFound:      http.StatusNotFound,
 	Conflict:      http.StatusConflict,
 	LastSuperuser: http.StatusConflict,
 	Internal:      http.StatusInternalServerError,
