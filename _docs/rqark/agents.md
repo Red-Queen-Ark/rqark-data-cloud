@@ -39,13 +39,15 @@ tools:
 
 | Method | Path | Request body | 說明 |
 |---|---|---|---|
-| GET | `/api/agents` | — | 列出自己全部 agent，支援 `?limit=&offset=`，`name` 升序 |
+| GET | `/api/agents` | — | 列出自己全部 agent，`name` 升序 |
 | GET | `/api/agents/{uuid}` | — | 取得單一 agent |
 | POST | `/api/agents` | `{ "name": str, "description"?: str, "prompts"?: [...], "tools"?: [...] }` | 建立 agent，回 `201` + `Location` |
 | PUT | `/api/agents/{uuid}` | 同 POST，未帶入的欄位不變更 | 更新 agent |
 | DELETE | `/api/agents/{uuid}` | — | 刪除 agent，回 `204` |
 
 GET / POST / PUT 回應即 `agents` row 減 `user_id`，另加 `id`、`created_at`、`updated_at`；`prompts` / `tools` 原樣（即 app `BaseAgent.to_dict()` 出嚟嘅 JSON）。
+
+`GET /api/agents` 唔分頁，直接回一個 array（同 `GET /api/providers` 一致：一個用戶嘅 agent 數量少，app 亦要一次過攞齊）。
 
 全部需要 `Authorization: Bearer <access_token>`。
 
@@ -57,13 +59,3 @@ GET / POST / PUT 回應即 `agents` row 減 `user_id`，另加 `id`、`created_a
 - **冇內容嘅 `params` 唔存** —— 對應 app `_without_empty_params`，所以無參數嘅 item 寫 `{ "name": "WebFetch" }`，唔會出 `"params": {}`。
 - **次序** —— `prompts` 次序唔重要（`AgentCore._get_system_prompts` 會按 `BasePrompt.priority` 由細到大排），`tools` 次序保留（`AgentCore` 順序 iterate 出 tool schema 同 tool prompt）。
 - **跨用戶** —— 任何 query 都帶 `user_id = <token 用戶>`；用其他用戶嘅 `uuid` 一律回 `404`（唔回 `403`，避免枚舉出 id）。
-
-## Pagination
-
-同其他 list endpoint：
-
-```json
-{ "items": [], "total": 128, "limit": 20, "offset": 0 }
-```
-
-`limit` default 20、上限 100。

@@ -66,27 +66,19 @@ func SaveAgent(ctx context.Context, db *gorm.DB, agent *Agent) error {
 	return db.WithContext(ctx).Save(agent).Error
 }
 
-// ListAgents returns one page of userID's agents ordered by name, together with
-// the total number of agents.
-func ListAgents(ctx context.Context, db *gorm.DB, userID uuid.UUID, limit, offset int) ([]Agent, int64, error) {
-	base := func() *gorm.DB {
-		return db.WithContext(ctx).Model(&Agent{}).Where("user_id = ?", userID)
-	}
-
-	var total int64
-	if err := base().Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
+// ListAgents returns all of userID's agents ordered by name. Agents are not
+// paginated: a user has few of them, and the app wants the whole set at once,
+// which is the same call the provider list makes.
+func ListAgents(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]Agent, error) {
 	var agents []Agent
-	err := base().
+	err := db.WithContext(ctx).
+		Where("user_id = ?", userID).
 		Order("name").Order("id").
-		Limit(limit).Offset(offset).
 		Find(&agents).Error
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
-	return agents, total, nil
+	return agents, nil
 }
 
 // DeleteAgent removes one of userID's agents.

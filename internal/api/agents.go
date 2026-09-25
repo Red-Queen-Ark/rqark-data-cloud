@@ -65,18 +65,16 @@ func toAgentDTO(agent *repository.Agent) AgentDTO {
 	}
 }
 
-// ListAgents returns a page of the caller's agents.
+// ListAgents returns every agent of the caller.
 //
 //	@Summary		List agents
-//	@Description	Returns the agents owned by the caller, ordered by name.
+//	@Description	Returns all of the caller's agents, ordered by name. Not paginated: a user has few of them.
 //	@Tags			agents
 //	@Security		BearerAuth
 //	@Produce		json
-//	@Param			limit	query		int	false	"Page size (default 20, max 100)"
-//	@Param			offset	query		int	false	"Number of agents to skip"
-//	@Success		200		{object}	utils.Page[AgentDTO]
-//	@Failure		401		{object}	utils.ErrorResponse
-//	@Failure		500		{object}	utils.ErrorResponse
+//	@Success		200	{array}		AgentDTO
+//	@Failure		401	{object}	utils.ErrorResponse
+//	@Failure		500	{object}	utils.ErrorResponse
 //	@Router			/agents [get]
 func ListAgents(c *gin.Context) {
 	actor, ok := middlewares.CurrentUser(c)
@@ -84,9 +82,8 @@ func ListAgents(c *gin.Context) {
 		utils.Abort(c, utils.Unauthorized, "Authentication credentials were not provided.")
 		return
 	}
-	page := utils.ParsePagination(c)
 
-	agents, total, err := service.ListAgents(c.Request.Context(), actor.ID, page.Limit, page.Offset)
+	agents, err := service.ListAgents(c.Request.Context(), actor.ID)
 	if err != nil {
 		abortInternal(c, err)
 		return
@@ -96,7 +93,7 @@ func ListAgents(c *gin.Context) {
 	for i := range agents {
 		items = append(items, toAgentDTO(&agents[i]))
 	}
-	c.JSON(http.StatusOK, utils.NewPage(items, total, page))
+	c.JSON(http.StatusOK, items)
 }
 
 // CreateAgent creates an agent.

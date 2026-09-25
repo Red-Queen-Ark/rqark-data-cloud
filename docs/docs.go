@@ -22,7 +22,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns the agents owned by the caller, ordered by name.",
+                "description": "Returns all of the caller's agents, ordered by name. Not paginated: a user has few of them.",
                 "produces": [
                     "application/json"
                 ],
@@ -30,25 +30,14 @@ const docTemplate = `{
                     "agents"
                 ],
                 "summary": "List agents",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Page size (default 20, max 100)",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Number of agents to skip",
-                        "name": "offset",
-                        "in": "query"
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Page-api_AgentDTO"
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.AgentDTO"
+                            }
                         }
                     },
                     "401": {
@@ -2863,29 +2852,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/api.APIKeyDTO"
-                    }
-                },
-                "limit": {
-                    "type": "integer",
-                    "example": 20
-                },
-                "offset": {
-                    "type": "integer",
-                    "example": 0
-                },
-                "total": {
-                    "type": "integer",
-                    "example": 128
-                }
-            }
-        },
-        "utils.Page-api_AgentDTO": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/api.AgentDTO"
                     }
                 },
                 "limit": {

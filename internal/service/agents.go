@@ -99,9 +99,9 @@ func DeleteAgent(ctx context.Context, userID, id uuid.UUID) error {
 	return repository.DeleteAgent(ctx, config.DB, userID, id)
 }
 
-// ListAgents returns one page of the agents owned by userID.
-func ListAgents(ctx context.Context, userID uuid.UUID, limit, offset int) ([]repository.Agent, int64, error) {
-	return repository.ListAgents(ctx, config.DB, userID, limit, offset)
+// ListAgents returns all of the agents owned by userID.
+func ListAgents(ctx context.Context, userID uuid.UUID) ([]repository.Agent, error) {
+	return repository.ListAgents(ctx, config.DB, userID)
 }
 
 // GetAgent loads a single agent owned by userID.

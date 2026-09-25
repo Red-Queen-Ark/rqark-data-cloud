@@ -468,22 +468,6 @@ definitions:
         example: 128
         type: integer
     type: object
-  utils.Page-api_AgentDTO:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/api.AgentDTO'
-        type: array
-      limit:
-        example: 20
-        type: integer
-      offset:
-        example: 0
-        type: integer
-      total:
-        example: 128
-        type: integer
-    type: object
   utils.Page-api_GroupDTO:
     properties:
       items:
@@ -525,23 +509,17 @@ info:
 paths:
   /agents:
     get:
-      description: Returns the agents owned by the caller, ordered by name.
-      parameters:
-      - description: Page size (default 20, max 100)
-        in: query
-        name: limit
-        type: integer
-      - description: Number of agents to skip
-        in: query
-        name: offset
-        type: integer
+      description: 'Returns all of the caller''s agents, ordered by name. Not paginated:
+        a user has few of them.'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/utils.Page-api_AgentDTO'
+            items:
+              $ref: '#/definitions/api.AgentDTO'
+            type: array
         "401":
           description: Unauthorized
           schema:
