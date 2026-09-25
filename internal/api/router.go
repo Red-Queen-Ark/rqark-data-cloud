@@ -22,6 +22,7 @@ func APIRouter(r *gin.Engine) {
 	AuthRouter(r)
 	UsersRouter(r)
 	GroupsRouter(r)
+	ProvidersRouter(r)
 }
 
 // LoadUser loads the user an access token names. It is the database hook the
@@ -78,6 +79,8 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.BadRequest, "User not found.")
 	case errors.Is(err, repository.ErrGroupNotFound):
 		utils.Abort(c, utils.BadRequest, "Group not found.")
+	case errors.Is(err, repository.ErrProviderNotFound):
+		utils.Abort(c, utils.NotFound, "Provider not found.")
 	case errors.Is(err, service.ErrOldPassword):
 		utils.Abort(c, utils.BadRequest, "Current password is incorrect.")
 	case errors.Is(err, service.ErrLastSuperuser):

@@ -1,0 +1,284 @@
+package service
+
+import (
+	"context"
+
+	"github.com/google/uuid"
+
+	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
+	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
+	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
+)
+
+// Column limits enforced before the database sees the values.
+const (
+	maxProviderNameLen  = 255
+	maxModelNameLen     = 255
+	maxProviderAPIKey   = 255
+	maxProviderAPIBase  = 255
+	reasoningEffortHigh = "high"
+	reasoningEffortMax  = "max"
+	thinkingEnabled     = "enabled"
+	thinkingDisabled    = "disabled"
+)
+
+// CreateProviderInput is the body accepted by POST /api/providers.
+type CreateProviderInput struct {
+	Name             string
+	ModelName        string
+	APIKey           string
+	APIBase          string
+	Priority         *int
+	ReasoningEffort  *string
+	Thinking         *string
+	Temperature      *float64
+	TopP             *float64
+	Seed             *int
+	FrequencyPenalty *float64
+	PresencePenalty  *float64
+	Combine          bool
+}
+
+// UpdateProviderInput is a partial update. A nil pointer for a NOT NULL column
+// leaves the stored value alone; the nullable columns are utils.Optional, so an
+// explicit null clears them while an absent key leaves them alone.
+type UpdateProviderInput struct {
+	Name             *string
+	ModelName        *string
+	APIKey           *string
+	APIBase          *string
+	Priority         *int
+	ReasoningEffort  utils.Optional[string]
+	Thinking         utils.Optional[string]
+	Temperature      utils.Optional[float64]
+	TopP             utils.Optional[float64]
+	Seed             utils.Optional[int]
+	FrequencyPenalty utils.Optional[float64]
+	PresencePenalty  utils.Optional[float64]
+	Combine          *bool
+}
+
+// CreateProvider validates in and stores a provider owned by userID.
+func CreateProvider(ctx context.Context, userID uuid.UUID, in CreateProviderInput) (*repository.Provider, error) {
+	if err := validateNewProvider(in); err != nil {
+		return nil, err
+	}
+
+	provider := &repository.Provider{
+		ID:               uuid.New(),
+		UserID:           userID,
+		Name:             in.Name,
+		ModelName:        in.ModelName,
+		APIKey:           in.APIKey,
+		APIBase:          in.APIBase,
+		Priority:         *in.Priority,
+		ReasoningEffort:  in.ReasoningEffort,
+		Thinking:         in.Thinking,
+		Temperature:      in.Temperature,
+		TopP:             in.TopP,
+		Seed:             in.Seed,
+		FrequencyPenalty: in.FrequencyPenalty,
+		PresencePenalty:  in.PresencePenalty,
+		Combine:          in.Combine,
+	}
+	if err := repository.CreateProvider(ctx, config.DB, provider); err != nil {
+		return nil, err
+	}
+	return provider, nil
+}
+
+// UpdateProvider applies in to one of userID's providers.
+func UpdateProvider(ctx context.Context, userID, id uuid.UUID, in UpdateProviderInput) (*repository.Provider, error) {
+	provider, err := repository.GetProviderByID(ctx, config.DB, userID, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validateProviderUpdate(in); err != nil {
+		return nil, err
+	}
+
+	if in.Name != nil {
+		provider.Name = *in.Name
+	}
+	if in.ModelName != nil {
+		provider.ModelName = *in.ModelName
+	}
+	if in.APIKey != nil {
+		provider.APIKey = *in.APIKey
+	}
+	if in.APIBase != nil {
+		provider.APIBase = *in.APIBase
+	}
+	if in.Priority != nil {
+		provider.Priority = *in.Priority
+	}
+	if in.ReasoningEffort.Set {
+		provider.ReasoningEffort = in.ReasoningEffort.Value
+	}
+	if in.Thinking.Set {
+		provider.Thinking = in.Thinking.Value
+	}
+	if in.Temperature.Set {
+		provider.Temperature = in.Temperature.Value
+	}
+	if in.TopP.Set {
+		provider.TopP = in.TopP.Value
+	}
+	if in.Seed.Set {
+		provider.Seed = in.Seed.Value
+	}
+	if in.FrequencyPenalty.Set {
+		provider.FrequencyPenalty = in.FrequencyPenalty.Value
+	}
+	if in.PresencePenalty.Set {
+		provider.PresencePenalty = in.PresencePenalty.Value
+	}
+	if in.Combine != nil {
+		provider.Combine = *in.Combine
+	}
+
+	if err := repository.SaveProvider(ctx, config.DB, provider); err != nil {
+		return nil, err
+	}
+	return provider, nil
+}
+
+// DeleteProvider removes one of userID's providers.
+func DeleteProvider(ctx context.Context, userID, id uuid.UUID) error {
+	return repository.DeleteProvider(ctx, config.DB, userID, id)
+}
+
+// ListProviders returns all of the providers owned by userID.
+func ListProviders(ctx context.Context, userID uuid.UUID) ([]repository.Provider, error) {
+	return repository.ListProviders(ctx, config.DB, userID)
+}
+
+// GetProvider loads a single provider owned by userID.
+func GetProvider(ctx context.Context, userID, id uuid.UUID) (*repository.Provider, error) {
+	return repository.GetProviderByID(ctx, config.DB, userID, id)
+}
+
+// validateNewProvider checks every field of a create body. Priority and the
+// three connection fields have no default, so they are required.
+func validateNewProvider(in CreateProviderInput) error {
+	if err := validateModelName(in.ModelName); err != nil {
+		return err
+	}
+	if err := validateProviderAPIKey(in.APIKey); err != nil {
+		return err
+	}
+	if err := validateProviderAPIBase(in.APIBase); err != nil {
+		return err
+	}
+	if err := validateProviderName(in.Name); err != nil {
+		return err
+	}
+	if in.Priority == nil {
+		return &ValidationError{Message: "priority is required."}
+	}
+	if in.ReasoningEffort != nil {
+		if err := validateReasoningEffort(*in.ReasoningEffort); err != nil {
+			return err
+		}
+	}
+	if in.Thinking != nil {
+		if err := validateThinking(*in.Thinking); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateProviderUpdate checks only the fields a partial update carries.
+func validateProviderUpdate(in UpdateProviderInput) error {
+	if in.Name != nil {
+		if err := validateProviderName(*in.Name); err != nil {
+			return err
+		}
+	}
+	if in.ModelName != nil {
+		if err := validateModelName(*in.ModelName); err != nil {
+			return err
+		}
+	}
+	if in.APIKey != nil {
+		if err := validateProviderAPIKey(*in.APIKey); err != nil {
+			return err
+		}
+	}
+	if in.APIBase != nil {
+		if err := validateProviderAPIBase(*in.APIBase); err != nil {
+			return err
+		}
+	}
+	if in.ReasoningEffort.Value != nil {
+		if err := validateReasoningEffort(*in.ReasoningEffort.Value); err != nil {
+			return err
+		}
+	}
+	if in.Thinking.Value != nil {
+		if err := validateThinking(*in.Thinking.Value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateProviderName checks that name fits its column. An empty name is
+// allowed: the app replaces it with model_name when it reads the provider.
+func validateProviderName(name string) error {
+	if len(name) > maxProviderNameLen {
+		return &ValidationError{Message: "name is too long."}
+	}
+	return nil
+}
+
+// validateModelName checks that modelName is present and fits its column.
+func validateModelName(modelName string) error {
+	if modelName == "" {
+		return &ValidationError{Message: "model_name is required."}
+	}
+	if len(modelName) > maxModelNameLen {
+		return &ValidationError{Message: "model_name is too long."}
+	}
+	return nil
+}
+
+// validateProviderAPIKey checks that apiKey is present and fits its column.
+func validateProviderAPIKey(apiKey string) error {
+	if apiKey == "" {
+		return &ValidationError{Message: "api_key is required."}
+	}
+	if len(apiKey) > maxProviderAPIKey {
+		return &ValidationError{Message: "api_key is too long."}
+	}
+	return nil
+}
+
+// validateProviderAPIBase checks that apiBase is present and fits its column.
+func validateProviderAPIBase(apiBase string) error {
+	if apiBase == "" {
+		return &ValidationError{Message: "api_base is required."}
+	}
+	if len(apiBase) > maxProviderAPIBase {
+		return &ValidationError{Message: "api_base is too long."}
+	}
+	return nil
+}
+
+// validateReasoningEffort checks the reasoning_effort enum.
+func validateReasoningEffort(value string) error {
+	if value != reasoningEffortHigh && value != reasoningEffortMax {
+		return &ValidationError{Message: `reasoning_effort must be "high" or "max".`}
+	}
+	return nil
+}
+
+// validateThinking checks the thinking enum.
+func validateThinking(value string) error {
+	if value != thinkingEnabled && value != thinkingDisabled {
+		return &ValidationError{Message: `thinking must be "enabled" or "disabled".`}
+	}
+	return nil
+}

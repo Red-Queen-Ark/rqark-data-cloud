@@ -765,6 +765,286 @@
                 }
             }
         },
+        "/providers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all of the caller's providers, lowest priority first. Not paginated: a user has few of them.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "List providers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.ProviderDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "The provider belongs to the caller. Answers 201 with a Location header pointing at the new provider.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Create a provider",
+                "parameters": [
+                    {
+                        "description": "Provider to create",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateProviderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/api.ProviderDTO"
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "URL of the created provider"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/providers/{uuid}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one of the caller's providers, api_key included. Another user's provider is reported as 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Get a provider",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Provider ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ProviderDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "A field that is absent keeps its stored value; sending null clears a nullable field. Another user's provider is reported as 404.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Update a provider",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Provider ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to change",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateProviderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ProviderDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Hard delete of one of the caller's providers. Another user's provider is reported as 404.",
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Delete a provider",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Provider ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/swagger.json": {
             "get": {
                 "description": "Returns the generated Swagger 2.0 document describing this API.",
@@ -1400,6 +1680,63 @@
                 }
             }
         },
+        "api.CreateProviderRequest": {
+            "type": "object",
+            "properties": {
+                "api_base": {
+                    "type": "string",
+                    "example": "https://api.deepseek.com/v1"
+                },
+                "api_key": {
+                    "type": "string",
+                    "example": "sk-rqark-0000"
+                },
+                "combine": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "frequency_penalty": {
+                    "type": "number",
+                    "example": 0.5
+                },
+                "model_name": {
+                    "type": "string",
+                    "example": "deepseek-v4-pro"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "deepseek-v4-pro"
+                },
+                "presence_penalty": {
+                    "type": "number",
+                    "example": 0.5
+                },
+                "priority": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "reasoning_effort": {
+                    "type": "string",
+                    "example": "high"
+                },
+                "seed": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "temperature": {
+                    "type": "number",
+                    "example": 0.7
+                },
+                "thinking": {
+                    "type": "string",
+                    "example": "enabled"
+                },
+                "top_p": {
+                    "type": "number",
+                    "example": 0.9
+                }
+            }
+        },
         "api.CreateUserRequest": {
             "type": "object",
             "properties": {
@@ -1481,6 +1818,73 @@
                 "message": {
                     "type": "string",
                     "example": "pong"
+                }
+            }
+        },
+        "api.ProviderDTO": {
+            "type": "object",
+            "properties": {
+                "api_base": {
+                    "type": "string",
+                    "example": "https://api.deepseek.com/v1"
+                },
+                "api_key": {
+                    "type": "string",
+                    "example": "sk-rqark-0000"
+                },
+                "combine": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "frequency_penalty": {
+                    "type": "number",
+                    "example": 0.5
+                },
+                "id": {
+                    "type": "string",
+                    "example": "7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "model_name": {
+                    "type": "string",
+                    "example": "deepseek-v4-pro"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "deepseek-v4-pro"
+                },
+                "presence_penalty": {
+                    "type": "number",
+                    "example": 0.5
+                },
+                "priority": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "reasoning_effort": {
+                    "type": "string",
+                    "example": "high"
+                },
+                "seed": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "temperature": {
+                    "type": "number",
+                    "example": 0.7
+                },
+                "thinking": {
+                    "type": "string",
+                    "example": "enabled"
+                },
+                "top_p": {
+                    "type": "number",
+                    "example": 0.9
+                },
+                "updated_at": {
+                    "type": "string"
                 }
             }
         },
@@ -1574,6 +1978,50 @@
                 }
             }
         },
+        "api.UpdateProviderRequest": {
+            "type": "object",
+            "properties": {
+                "api_base": {
+                    "type": "string"
+                },
+                "api_key": {
+                    "type": "string"
+                },
+                "combine": {
+                    "type": "boolean"
+                },
+                "frequency_penalty": {
+                    "type": "number"
+                },
+                "model_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "presence_penalty": {
+                    "type": "number"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                },
+                "seed": {
+                    "type": "integer"
+                },
+                "temperature": {
+                    "type": "number"
+                },
+                "thinking": {
+                    "type": "string"
+                },
+                "top_p": {
+                    "type": "number"
+                }
+            }
+        },
         "api.UpdateUserRequest": {
             "type": "object",
             "properties": {
@@ -1642,6 +2090,7 @@
                 "UNAUTHORIZED",
                 "FORBIDDEN",
                 "BAD_REQUEST",
+                "NOT_FOUND",
                 "CONFLICT",
                 "LAST_SUPERUSER",
                 "INTERNAL"
@@ -1650,6 +2099,7 @@
                 "Unauthorized",
                 "Forbidden",
                 "BadRequest",
+                "NotFound",
                 "Conflict",
                 "LastSuperuser",
                 "Internal"
@@ -1755,6 +2205,10 @@
         {
             "description": "Authentication, registration and password reset.",
             "name": "auth"
+        },
+        {
+            "description": "Model providers owned by the authenticated user.",
+            "name": "providers"
         }
     ]
 }

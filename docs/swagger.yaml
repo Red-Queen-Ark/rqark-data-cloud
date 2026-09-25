@@ -15,6 +15,48 @@ definitions:
         example: engineering
         type: string
     type: object
+  api.CreateProviderRequest:
+    properties:
+      api_base:
+        example: https://api.deepseek.com/v1
+        type: string
+      api_key:
+        example: sk-rqark-0000
+        type: string
+      combine:
+        example: false
+        type: boolean
+      frequency_penalty:
+        example: 0.5
+        type: number
+      model_name:
+        example: deepseek-v4-pro
+        type: string
+      name:
+        example: deepseek-v4-pro
+        type: string
+      presence_penalty:
+        example: 0.5
+        type: number
+      priority:
+        example: 1
+        type: integer
+      reasoning_effort:
+        example: high
+        type: string
+      seed:
+        example: 42
+        type: integer
+      temperature:
+        example: 0.7
+        type: number
+      thinking:
+        example: enabled
+        type: string
+      top_p:
+        example: 0.9
+        type: number
+    type: object
   api.CreateUserRequest:
     properties:
       display_name:
@@ -71,6 +113,55 @@ definitions:
     properties:
       message:
         example: pong
+        type: string
+    type: object
+  api.ProviderDTO:
+    properties:
+      api_base:
+        example: https://api.deepseek.com/v1
+        type: string
+      api_key:
+        example: sk-rqark-0000
+        type: string
+      combine:
+        example: false
+        type: boolean
+      created_at:
+        type: string
+      frequency_penalty:
+        example: 0.5
+        type: number
+      id:
+        example: 7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      model_name:
+        example: deepseek-v4-pro
+        type: string
+      name:
+        example: deepseek-v4-pro
+        type: string
+      presence_penalty:
+        example: 0.5
+        type: number
+      priority:
+        example: 1
+        type: integer
+      reasoning_effort:
+        example: high
+        type: string
+      seed:
+        example: 42
+        type: integer
+      temperature:
+        example: 0.7
+        type: number
+      thinking:
+        example: enabled
+        type: string
+      top_p:
+        example: 0.9
+        type: number
+      updated_at:
         type: string
     type: object
   api.RefreshRequest:
@@ -134,6 +225,35 @@ definitions:
       username:
         type: string
     type: object
+  api.UpdateProviderRequest:
+    properties:
+      api_base:
+        type: string
+      api_key:
+        type: string
+      combine:
+        type: boolean
+      frequency_penalty:
+        type: number
+      model_name:
+        type: string
+      name:
+        type: string
+      presence_penalty:
+        type: number
+      priority:
+        type: integer
+      reasoning_effort:
+        type: string
+      seed:
+        type: integer
+      temperature:
+        type: number
+      thinking:
+        type: string
+      top_p:
+        type: number
+    type: object
   api.UpdateUserRequest:
     properties:
       display_name:
@@ -182,6 +302,7 @@ definitions:
     - UNAUTHORIZED
     - FORBIDDEN
     - BAD_REQUEST
+    - NOT_FOUND
     - CONFLICT
     - LAST_SUPERUSER
     - INTERNAL
@@ -190,6 +311,7 @@ definitions:
     - Unauthorized
     - Forbidden
     - BadRequest
+    - NotFound
     - Conflict
     - LastSuperuser
     - Internal
@@ -750,6 +872,191 @@ paths:
       summary: Health check
       tags:
       - ping
+  /providers:
+    get:
+      description: 'Returns all of the caller''s providers, lowest priority first.
+        Not paginated: a user has few of them.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.ProviderDTO'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List providers
+      tags:
+      - providers
+    post:
+      consumes:
+      - application/json
+      description: The provider belongs to the caller. Answers 201 with a Location
+        header pointing at the new provider.
+      parameters:
+      - description: Provider to create
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateProviderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: URL of the created provider
+              type: string
+          schema:
+            $ref: '#/definitions/api.ProviderDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a provider
+      tags:
+      - providers
+  /providers/{uuid}:
+    delete:
+      description: Hard delete of one of the caller's providers. Another user's provider
+        is reported as 404.
+      parameters:
+      - description: Provider ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a provider
+      tags:
+      - providers
+    get:
+      description: Returns one of the caller's providers, api_key included. Another
+        user's provider is reported as 404.
+      parameters:
+      - description: Provider ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ProviderDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a provider
+      tags:
+      - providers
+    put:
+      consumes:
+      - application/json
+      description: A field that is absent keeps its stored value; sending null clears
+        a nullable field. Another user's provider is reported as 404.
+      parameters:
+      - description: Provider ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Fields to change
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateProviderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ProviderDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a provider
+      tags:
+      - providers
   /swagger.json:
     get:
       description: Returns the generated Swagger 2.0 document describing this API.
@@ -1170,3 +1477,5 @@ tags:
   name: groups
 - description: Authentication, registration and password reset.
   name: auth
+- description: Model providers owned by the authenticated user.
+  name: providers
