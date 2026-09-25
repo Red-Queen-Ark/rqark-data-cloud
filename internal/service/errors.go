@@ -20,6 +20,9 @@ var (
 	ErrEmailTaken = errors.New("service: email already taken")
 	// ErrGroupNameTaken is returned when a write would duplicate a group name.
 	ErrGroupNameTaken = errors.New("service: group name already taken")
+	// ErrAgentNameTaken is returned when a write would duplicate the name of an
+	// agent already owned by the same user.
+	ErrAgentNameTaken = errors.New("service: agent name already taken")
 	// ErrInvalidCredentials is returned for every failed login, whatever the
 	// cause.
 	ErrInvalidCredentials = errors.New("service: invalid credentials")
@@ -79,6 +82,8 @@ func mapWriteError(err error) error {
 		return ErrEmailTaken
 	case "idx_groups_name":
 		return ErrGroupNameTaken
+	case "idx_agents_user_id_name":
+		return ErrAgentNameTaken
 	default:
 		return err
 	}

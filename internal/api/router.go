@@ -22,6 +22,7 @@ func APIRouter(r *gin.Engine) {
 	AuthRouter(r)
 	UsersRouter(r)
 	GroupsRouter(r)
+	AgentsRouter(r)
 	ProvidersRouter(r)
 }
 
@@ -75,6 +76,10 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.Conflict, "Email is already taken.")
 	case errors.Is(err, service.ErrGroupNameTaken):
 		utils.Abort(c, utils.Conflict, "Group name is already taken.")
+	case errors.Is(err, service.ErrAgentNameTaken):
+		utils.Abort(c, utils.Conflict, "Agent name is already taken.")
+	case errors.Is(err, repository.ErrAgentNotFound):
+		utils.Abort(c, utils.NotFound, "Agent not found.")
 	case errors.Is(err, repository.ErrUserNotFound):
 		utils.Abort(c, utils.BadRequest, "User not found.")
 	case errors.Is(err, repository.ErrGroupNotFound):
