@@ -255,10 +255,10 @@ func DeleteAgent(c *gin.Context) {
 }
 
 // AgentsRouter registers the agent routes. There is no superuser path here:
-// every agent belongs to the caller, and every query is scoped to the token's
-// user.
+// every agent belongs to the caller, and every query is scoped to the user
+// behind the access token or the API key.
 func AgentsRouter(r *gin.Engine) {
-	agents := r.Group("/api/agents", authRequired())
+	agents := r.Group("/api/agents", authOrAPIKey())
 	agents.GET("", ListAgents)
 	agents.POST("", CreateAgent)
 	agents.GET("/:uuid", GetAgent)

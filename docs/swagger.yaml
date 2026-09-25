@@ -1,5 +1,39 @@
 basePath: /api
 definitions:
+  api.APIKeyDTO:
+    properties:
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      id:
+        example: 3f9a1c7e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      is_active:
+        example: true
+        type: boolean
+      key:
+        description: |-
+          Key is the plaintext key. Only the create response carries it: that is
+          the single moment the key exists outside its owner's hands.
+        example: rqark-9Zk2Xf1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1p
+        type: string
+      key_prefix:
+        example: rqark-9Zk2Xf1p
+        type: string
+      last_used_at:
+        type: string
+      name:
+        example: laptop
+        type: string
+      revoked_at:
+        type: string
+      revoked_message:
+        example: user_deleted
+        type: string
+      updated_at:
+        type: string
+    type: object
   api.AgentDTO:
     properties:
       created_at:
@@ -31,6 +65,14 @@ definitions:
         type: string
       old_password:
         example: correct-horse-battery
+        type: string
+    type: object
+  api.CreateAPIKeyRequest:
+    properties:
+      expires_at:
+        type: string
+      name:
+        example: laptop
         type: string
     type: object
   api.CreateAgentRequest:
@@ -249,6 +291,15 @@ definitions:
         example: 9f2c1a1b1c1d1e1f1a1b1c1d1e1f1a1b
         type: string
     type: object
+  api.UpdateAPIKeyRequest:
+    properties:
+      expires_at:
+        type: string
+      is_active:
+        type: boolean
+      name:
+        type: string
+    type: object
   api.UpdateAgentRequest:
     properties:
       description:
@@ -400,6 +451,22 @@ definitions:
     properties:
       error:
         $ref: '#/definitions/utils.Error'
+    type: object
+  utils.Page-api_APIKeyDTO:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.APIKeyDTO'
+        type: array
+      limit:
+        example: 20
+        type: integer
+      offset:
+        example: 0
+        type: integer
+      total:
+        example: 128
+        type: integer
     type: object
   utils.Page-api_AgentDTO:
     properties:
@@ -655,6 +722,169 @@ paths:
       summary: Update an agent
       tags:
       - agents
+  /api-keys:
+    get:
+      description: 'Returns the caller''s keys, newest first. The keys themselves
+        are not part of the response: only the prefix each was created with.'
+      parameters:
+      - description: Page size (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Number of keys to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Page-api_APIKeyDTO'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List API keys
+      tags:
+      - api-keys
+    post:
+      consumes:
+      - application/json
+      description: The key belongs to the caller. The response is the only place the
+        key itself is ever returned; only its hash is stored, so a lost key cannot
+        be recovered, only replaced.
+      parameters:
+      - description: Key to create
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateAPIKeyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: URL of the created key
+              type: string
+          schema:
+            $ref: '#/definitions/api.APIKeyDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create an API key
+      tags:
+      - api-keys
+  /api-keys/{uuid}:
+    delete:
+      description: 'Soft delete: the key stops authenticating at once, is left out
+        of the listing, and the row stays behind for audit with the time and the reason.
+        Another user''s key is reported as 404, and deleting a deleted key is a no-op.'
+      parameters:
+      - description: API key ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete an API key
+      tags:
+      - api-keys
+    patch:
+      consumes:
+      - application/json
+      description: 'A field that is absent keeps its stored value. Setting expires_at
+        is also how a lapsed key is renewed: the key is then active and usable again,
+        and null makes it never expire. Switching a lapsed key on without moving its
+        expiry is refused. A key that was deleted is hidden and cannot be updated.
+        Another user''s key is reported as 404.'
+      parameters:
+      - description: API key ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Fields to change
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateAPIKeyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.APIKeyDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update an API key
+      tags:
+      - api-keys
   /auth/forgot-password:
     post:
       consumes:
@@ -1767,3 +1997,5 @@ tags:
   name: agents
 - description: Model providers owned by the authenticated user.
   name: providers
+- description: API keys owned by the authenticated user.
+  name: api-keys

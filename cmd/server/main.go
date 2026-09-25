@@ -35,6 +35,8 @@ import (
 // @tag.description			Agents owned by the authenticated user.
 // @tag.name					providers
 // @tag.description			Model providers owned by the authenticated user.
+// @tag.name					api-keys
+// @tag.description			API keys owned by the authenticated user.
 
 // @securityDefinitions.apikey	BearerAuth
 // @in							header
@@ -42,7 +44,7 @@ import (
 // @description				Bearer <access_token>
 func main() {
 	config.InitDatabase()
-	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}, &repository.Agent{}, &repository.Provider{}); err != nil {
+	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}, &repository.Agent{}, &repository.Provider{}, &repository.APIKey{}); err != nil {
 		log.Fatalf("main: automigrate: %v", err)
 	}
 	config.InitRedis()

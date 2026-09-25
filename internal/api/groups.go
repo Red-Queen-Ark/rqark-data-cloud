@@ -292,9 +292,10 @@ func RemoveGroupMember(c *gin.Context) {
 }
 
 // GroupsRouter registers the group routes. Reading a group only needs a bearer
-// token; everything that writes, and the member listing, needs a superuser.
+// credential, which may be an access token or an API key; everything that
+// writes, and the member listing, needs a superuser.
 func GroupsRouter(r *gin.Engine) {
-	read := r.Group("/api/groups", authRequired())
+	read := r.Group("/api/groups", authOrAPIKey())
 	read.GET("", ListGroups)
 	read.GET("/:uuid", GetGroup)
 

@@ -334,10 +334,11 @@ func DeleteProvider(c *gin.Context) {
 }
 
 // ProvidersRouter registers the provider routes. Providers hold credentials, so
-// every route is scoped to the token's user and none of them has a superuser
-// path.
+// every route is scoped to the caller and none of them has a superuser path. An
+// access token or an API key is accepted: a provider is what a client needs
+// before it can talk to a model.
 func ProvidersRouter(r *gin.Engine) {
-	providers := r.Group("/api/providers", authRequired())
+	providers := r.Group("/api/providers", authOrAPIKey())
 	providers.GET("", ListProviders)
 	providers.POST("", CreateProvider)
 	providers.GET("/:uuid", GetProvider)

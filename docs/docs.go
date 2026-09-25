@@ -318,6 +318,246 @@ const docTemplate = `{
                 }
             }
         },
+        "/api-keys": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the caller's keys, newest first. The keys themselves are not part of the response: only the prefix each was created with.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "api-keys"
+                ],
+                "summary": "List API keys",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 20, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of keys to skip",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Page-api_APIKeyDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "The key belongs to the caller. The response is the only place the key itself is ever returned; only its hash is stored, so a lost key cannot be recovered, only replaced.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "api-keys"
+                ],
+                "summary": "Create an API key",
+                "parameters": [
+                    {
+                        "description": "Key to create",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateAPIKeyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/api.APIKeyDTO"
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "URL of the created key"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api-keys/{uuid}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Soft delete: the key stops authenticating at once, is left out of the listing, and the row stays behind for audit with the time and the reason. Another user's key is reported as 404, and deleting a deleted key is a no-op.",
+                "tags": [
+                    "api-keys"
+                ],
+                "summary": "Delete an API key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "API key ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "A field that is absent keeps its stored value. Setting expires_at is also how a lapsed key is renewed: the key is then active and usable again, and null makes it never expire. Switching a lapsed key on without moving its expiry is refused. A key that was deleted is hidden and cannot be updated. Another user's key is reported as 404.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "api-keys"
+                ],
+                "summary": "Update an API key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "API key ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to change",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateAPIKeyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.APIKeyDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/forgot-password": {
             "post": {
                 "description": "Answers 204 whether or not the email exists, so the endpoint cannot be used to enumerate accounts. A reset link is generated for an existing active account only.",
@@ -1967,6 +2207,51 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "api.APIKeyDTO": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "3f9a1c7e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "is_active": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "key": {
+                    "description": "Key is the plaintext key. Only the create response carries it: that is\nthe single moment the key exists outside its owner's hands.",
+                    "type": "string",
+                    "example": "rqark-9Zk2Xf1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1p"
+                },
+                "key_prefix": {
+                    "type": "string",
+                    "example": "rqark-9Zk2Xf1p"
+                },
+                "last_used_at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "laptop"
+                },
+                "revoked_at": {
+                    "type": "string"
+                },
+                "revoked_message": {
+                    "type": "string",
+                    "example": "user_deleted"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "api.AgentDTO": {
             "type": "object",
             "properties": {
@@ -2012,6 +2297,18 @@ const docTemplate = `{
                 "old_password": {
                     "type": "string",
                     "example": "correct-horse-battery"
+                }
+            }
+        },
+        "api.CreateAPIKeyRequest": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "laptop"
                 }
             }
         },
@@ -2321,6 +2618,20 @@ const docTemplate = `{
                 }
             }
         },
+        "api.UpdateAPIKeyRequest": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "api.UpdateAgentRequest": {
             "type": "object",
             "properties": {
@@ -2545,6 +2856,29 @@ const docTemplate = `{
                 }
             }
         },
+        "utils.Page-api_APIKeyDTO": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.APIKeyDTO"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "offset": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 128
+                }
+            }
+        },
         "utils.Page-api_AgentDTO": {
             "type": "object",
             "properties": {
@@ -2651,6 +2985,10 @@ const docTemplate = `{
         {
             "description": "Model providers owned by the authenticated user.",
             "name": "providers"
+        },
+        {
+            "description": "API keys owned by the authenticated user.",
+            "name": "api-keys"
         }
     ]
 }`

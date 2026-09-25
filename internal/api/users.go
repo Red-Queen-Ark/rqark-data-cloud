@@ -423,10 +423,11 @@ func DeleteUser(c *gin.Context) {
 }
 
 // UsersRouter registers the user routes. Everything below /users requires a
-// bearer token; the collection and the uuid routes additionally require a
-// superuser.
+// bearer credential, an API key included for the caller's own account; the
+// collection and the uuid routes additionally require a superuser, and those
+// take an access token only.
 func UsersRouter(r *gin.Engine) {
-	me := r.Group("/api/users", authRequired())
+	me := r.Group("/api/users", authOrAPIKey())
 	me.GET("/me", GetMe)
 	me.PATCH("/me", UpdateMe)
 	me.PUT("/me/password", ChangeMyPassword)

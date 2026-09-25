@@ -24,6 +24,7 @@ func APIRouter(r *gin.Engine) {
 	GroupsRouter(r)
 	AgentsRouter(r)
 	ProvidersRouter(r)
+	APIKeysRouter(r)
 }
 
 // LoadUser loads the user an access token names. It is the database hook the
@@ -32,9 +33,27 @@ func LoadUser(ctx context.Context, id uuid.UUID) (*repository.User, error) {
 	return repository.GetUserByID(ctx, config.DB, id)
 }
 
+// AuthenticateAPIKey resolves the user behind an API key. It is the hook the
+// auth middleware calls when a request carries a key instead of an access
+// token. A key that may not be used is reported as a rejected credential;
+// anything else is a server-side failure.
+func AuthenticateAPIKey(ctx context.Context, raw string) (*repository.User, error) {
+	user, err := service.AuthenticateAPIKey(ctx, raw)
+	if errors.Is(err, service.ErrInvalidAPIKey) {
+		return nil, middlewares.ErrAPIKeyRejected
+	}
+	return user, err
+}
+
 // authRequired guards a route with bearer authentication.
 func authRequired() gin.HandlerFunc {
 	return middlewares.Auth([]byte(config.SecretKey), LoadUser)
+}
+
+// authOrAPIKey guards a route with bearer authentication that accepts either an
+// access token or an API key.
+func authOrAPIKey() gin.HandlerFunc {
+	return middlewares.AuthOrAPIKey([]byte(config.SecretKey), LoadUser, AuthenticateAPIKey)
 }
 
 // superuserRequired guards a route with bearer authentication followed by the
@@ -86,6 +105,12 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.BadRequest, "Group not found.")
 	case errors.Is(err, repository.ErrProviderNotFound):
 		utils.Abort(c, utils.NotFound, "Provider not found.")
+	case errors.Is(err, repository.ErrAPIKeyNotFound):
+		utils.Abort(c, utils.NotFound, "API key not found.")
+	case errors.Is(err, service.ErrAPIKeyRevoked):
+		utils.Abort(c, utils.Conflict, "This API key was deleted and cannot be brought back.")
+	case errors.Is(err, service.ErrAPIKeyLapsed):
+		utils.Abort(c, utils.Conflict, "This API key has expired. Set expires_at to a future time to renew it.")
 	case errors.Is(err, service.ErrOldPassword):
 		utils.Abort(c, utils.BadRequest, "Current password is incorrect.")
 	case errors.Is(err, service.ErrLastSuperuser):
