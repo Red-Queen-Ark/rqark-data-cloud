@@ -1,0 +1,16 @@
+name: Deploy
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: carhyme-gitea-runner
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy containers
+        run: |
+          docker compose -f docker-compose.production.yml up -d --build
