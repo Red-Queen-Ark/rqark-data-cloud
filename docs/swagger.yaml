@@ -139,6 +139,19 @@ definitions:
         example: 0.9
         type: number
     type: object
+  api.CreateSessionRequest:
+    properties:
+      plan_items:
+        items:
+          $ref: '#/definitions/repository.SessionPlanItem'
+        type: array
+      title:
+        example: Trip planning
+        type: string
+      uuid:
+        example: 6b1c1f3a-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+    type: object
   api.CreateUserRequest:
     properties:
       display_name:
@@ -276,6 +289,37 @@ definitions:
         example: 9f2c1a1b1c1d1e1f1a1b1c1d1e1f1a1b
         type: string
     type: object
+  api.SessionDTO:
+    properties:
+      created_at:
+        type: string
+      id:
+        example: 6b1c1f3a-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      plan_items:
+        items:
+          $ref: '#/definitions/repository.SessionPlanItem'
+        type: array
+      title:
+        example: Trip planning
+        type: string
+      updated_at:
+        type: string
+    type: object
+  api.SessionMessageDTO:
+    properties:
+      created_at:
+        type: string
+      data:
+        additionalProperties: {}
+        type: object
+      role:
+        example: user
+        type: string
+      seq:
+        example: 0
+        type: integer
+    type: object
   api.SetPasswordRequest:
     properties:
       new_password:
@@ -360,6 +404,20 @@ definitions:
       top_p:
         type: number
     type: object
+  api.UpdateSessionRequest:
+    properties:
+      history:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      plan_items:
+        items:
+          $ref: '#/definitions/repository.SessionPlanItem'
+        type: array
+      title:
+        type: string
+    type: object
   api.UpdateUserRequest:
     properties:
       display_name:
@@ -418,6 +476,15 @@ definitions:
       params:
         additionalProperties: {}
         type: object
+    type: object
+  repository.SessionPlanItem:
+    properties:
+      content:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
     type: object
   utils.Code:
     enum:
@@ -1551,9 +1618,245 @@ paths:
       summary: Update a provider
       tags:
       - providers
+  /sessions:
+    get:
+      description: 'Returns all of the caller''s sessions, most recently updated first,
+        without their messages. Not paginated: the app syncs its whole session set
+        in one go.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.SessionDTO'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List sessions
+      tags:
+      - sessions
+    post:
+      consumes:
+      - application/json
+      description: The session belongs to the caller. A uuid the caller brings is
+        kept; one it does not is minted here. Answers 201 with a Location header pointing
+        at the new session.
+      parameters:
+      - description: Session to create
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateSessionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: URL of the created session
+              type: string
+          schema:
+            $ref: '#/definitions/api.SessionDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a session
+      tags:
+      - sessions
+  /sessions/{uuid}:
+    delete:
+      description: Hard delete of one of the caller's sessions, its messages included.
+        Another user's session is reported as 404.
+      parameters:
+      - description: Session ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a session
+      tags:
+      - sessions
+    get:
+      description: Returns one of the caller's sessions without its messages. Another
+        user's session is reported as 404.
+      parameters:
+      - description: Session ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SessionDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a session
+      tags:
+      - sessions
+    put:
+      consumes:
+      - application/json
+      description: Every field is optional and a field that is absent is left untouched.
+        A history replaces the session's messages wholesale. Another user's session
+        is reported as 404.
+      parameters:
+      - description: Session ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Fields to change
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateSessionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SessionDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a session
+      tags:
+      - sessions
+  /sessions/{uuid}/messages:
+    get:
+      description: 'Returns all messages of one of the caller''s sessions in the order
+        they were sent. Not paginated: the app loads a session''s whole history, which
+        is also what its own file storage holds. Another user''s session is reported
+        as 404.'
+      parameters:
+      - description: Session ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.SessionMessageDTO'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List session messages
+      tags:
+      - sessions
   /swagger.json:
     get:
       description: Returns the generated Swagger 2.0 document describing this API.
+        Served without caching, so a viewer always sees the current API.
       produces:
       - application/json
       responses:
@@ -1564,9 +1867,19 @@ paths:
       summary: OpenAPI specification (JSON)
       tags:
       - swagger
+    options:
+      description: Answers the CORS preflight for the specification endpoints. Any
+        origin may read the document, and GET is the only method offered.
+      responses:
+        "204":
+          description: No Content
+      summary: Specification preflight
+      tags:
+      - swagger
   /swagger.yml:
     get:
       description: Returns the generated Swagger 2.0 document describing this API.
+        Served without caching, so a viewer always sees the current API.
       produces:
       - application/yaml
       responses:
@@ -1975,5 +2288,7 @@ tags:
   name: agents
 - description: Model providers owned by the authenticated user.
   name: providers
+- description: Sessions and their messages owned by the authenticated user.
+  name: sessions
 - description: API keys owned by the authenticated user.
   name: api-keys

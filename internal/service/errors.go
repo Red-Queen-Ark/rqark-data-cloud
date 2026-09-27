@@ -23,6 +23,10 @@ var (
 	// ErrAgentNameTaken is returned when a write would duplicate the name of an
 	// agent already owned by the same user.
 	ErrAgentNameTaken = errors.New("service: agent name already taken")
+	// ErrSessionConflict is returned when a create would reuse the id of a
+	// session that already exists. The app owns session ids, so a repeat means
+	// the app and the cloud disagree about a session rather than a fresh one.
+	ErrSessionConflict = errors.New("service: session already exists")
 	// ErrInvalidCredentials is returned for every failed login, whatever the
 	// cause.
 	ErrInvalidCredentials = errors.New("service: invalid credentials")
@@ -84,6 +88,8 @@ func mapWriteError(err error) error {
 		return ErrGroupNameTaken
 	case "idx_agents_user_id_name":
 		return ErrAgentNameTaken
+	case "sessions_pkey":
+		return ErrSessionConflict
 	default:
 		return err
 	}

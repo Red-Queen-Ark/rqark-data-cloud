@@ -1577,9 +1577,357 @@
                 }
             }
         },
+        "/sessions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all of the caller's sessions, most recently updated first, without their messages. Not paginated: the app syncs its whole session set in one go.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "List sessions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.SessionDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "The session belongs to the caller. A uuid the caller brings is kept; one it does not is minted here. Answers 201 with a Location header pointing at the new session.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Create a session",
+                "parameters": [
+                    {
+                        "description": "Session to create",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateSessionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/api.SessionDTO"
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "URL of the created session"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/{uuid}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one of the caller's sessions without its messages. Another user's session is reported as 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Get a session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Session ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SessionDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Every field is optional and a field that is absent is left untouched. A history replaces the session's messages wholesale. Another user's session is reported as 404.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Update a session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Session ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to change",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateSessionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SessionDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Hard delete of one of the caller's sessions, its messages included. Another user's session is reported as 404.",
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Delete a session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Session ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/{uuid}/messages": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all messages of one of the caller's sessions in the order they were sent. Not paginated: the app loads a session's whole history, which is also what its own file storage holds. Another user's session is reported as 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "List session messages",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Session ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.SessionMessageDTO"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/swagger.json": {
             "get": {
-                "description": "Returns the generated Swagger 2.0 document describing this API.",
+                "description": "Returns the generated Swagger 2.0 document describing this API. Served without caching, so a viewer always sees the current API.",
                 "produces": [
                     "application/json"
                 ],
@@ -1595,11 +1943,23 @@
                         }
                     }
                 }
+            },
+            "options": {
+                "description": "Answers the CORS preflight for the specification endpoints. Any origin may read the document, and GET is the only method offered.",
+                "tags": [
+                    "swagger"
+                ],
+                "summary": "Specification preflight",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
             }
         },
         "/swagger.yml": {
             "get": {
-                "description": "Returns the generated Swagger 2.0 document describing this API.",
+                "description": "Returns the generated Swagger 2.0 document describing this API. Served without caching, so a viewer always sees the current API.",
                 "produces": [
                     "application/yaml"
                 ],
@@ -2385,6 +2745,25 @@
                 }
             }
         },
+        "api.CreateSessionRequest": {
+            "type": "object",
+            "properties": {
+                "plan_items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.SessionPlanItem"
+                    }
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Trip planning"
+                },
+                "uuid": {
+                    "type": "string",
+                    "example": "6b1c1f3a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                }
+            }
+        },
         "api.CreateUserRequest": {
             "type": "object",
             "properties": {
@@ -2579,6 +2958,51 @@
                 }
             }
         },
+        "api.SessionDTO": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "6b1c1f3a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "plan_items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.SessionPlanItem"
+                    }
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Trip planning"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.SessionMessageDTO": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "data": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "role": {
+                    "type": "string",
+                    "example": "user"
+                },
+                "seq": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
         "api.SetPasswordRequest": {
             "type": "object",
             "properties": {
@@ -2707,6 +3131,27 @@
                 }
             }
         },
+        "api.UpdateSessionRequest": {
+            "type": "object",
+            "properties": {
+                "history": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "plan_items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.SessionPlanItem"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "api.UpdateUserRequest": {
             "type": "object",
             "properties": {
@@ -2790,6 +3235,20 @@
                 "params": {
                     "type": "object",
                     "additionalProperties": {}
+                }
+            }
+        },
+        "repository.SessionPlanItem": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
                 }
             }
         },
@@ -2945,6 +3404,10 @@
         {
             "description": "Model providers owned by the authenticated user.",
             "name": "providers"
+        },
+        {
+            "description": "Sessions and their messages owned by the authenticated user.",
+            "name": "sessions"
         },
         {
             "description": "API keys owned by the authenticated user.",
