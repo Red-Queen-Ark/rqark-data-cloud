@@ -81,6 +81,22 @@ func ListAgents(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]Agent, er
 	return agents, nil
 }
 
+// ListAgentNames returns the names of all of userID's agents ordered by name.
+// It selects the single column the caller wants, so a listing that only needs
+// names never reads prompts or tools.
+func ListAgentNames(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]string, error) {
+	names := []string{}
+	err := db.WithContext(ctx).
+		Model(&Agent{}).
+		Where("user_id = ?", userID).
+		Order("name").Order("id").
+		Pluck("name", &names).Error
+	if err != nil {
+		return nil, err
+	}
+	return names, nil
+}
+
 // DeleteAgent removes one of userID's agents.
 func DeleteAgent(ctx context.Context, db *gorm.DB, userID, id uuid.UUID) error {
 	result := db.WithContext(ctx).

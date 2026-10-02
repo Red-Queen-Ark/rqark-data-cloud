@@ -259,6 +259,15 @@ definitions:
       updated_at:
         type: string
     type: object
+  api.ProviderSummaryDTO:
+    properties:
+      model_name:
+        example: kimi-k3
+        type: string
+      name:
+        example: primary
+        type: string
+    type: object
   api.RefreshRequest:
     properties:
       refresh_token:
@@ -765,6 +774,32 @@ paths:
       security:
       - BearerAuth: []
       summary: Update an agent
+      tags:
+      - agents
+  /agents/names:
+    get:
+      description: 'Returns the name of all of the caller''s agents, ordered by name.
+        The rest of each agent is left out. Not paginated: a user has few of them.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List agent names
       tags:
       - agents
   /api-keys:
@@ -1616,6 +1651,33 @@ paths:
       security:
       - BearerAuth: []
       summary: Update a provider
+      tags:
+      - providers
+  /providers/models:
+    get:
+      description: 'Returns name and model_name for all of the caller''s providers,
+        lowest priority first. The remaining provider fields, credentials included,
+        are left out. Not paginated: a user has few of them.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.ProviderSummaryDTO'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List provider models
       tags:
       - providers
   /sessions:

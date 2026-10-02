@@ -154,6 +154,12 @@ func ListProviders(ctx context.Context, userID uuid.UUID) ([]repository.Provider
 	return repository.ListProviders(ctx, config.DB, userID)
 }
 
+// ListProviderSummaries returns the name and model_name of all providers owned
+// by userID.
+func ListProviderSummaries(ctx context.Context, userID uuid.UUID) ([]repository.ProviderSummary, error) {
+	return repository.ListProviderSummaries(ctx, config.DB, userID)
+}
+
 // GetProvider loads a single provider owned by userID.
 func GetProvider(ctx context.Context, userID, id uuid.UUID) (*repository.Provider, error) {
 	return repository.GetProviderByID(ctx, config.DB, userID, id)

@@ -79,6 +79,29 @@ func ListProviders(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]Provid
 	return providers, nil
 }
 
+// ProviderSummary is the lightweight provider view: the two fields a client
+// needs to label a provider, without the credentials the full row carries.
+type ProviderSummary struct {
+	Name      string
+	ModelName string
+}
+
+// ListProviderSummaries returns the name and model_name of every provider of
+// userID, lowest priority first, which is the order the app tries them in.
+func ListProviderSummaries(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]ProviderSummary, error) {
+	summaries := []ProviderSummary{}
+	err := db.WithContext(ctx).
+		Model(&Provider{}).
+		Select("name", "model_name").
+		Where("user_id = ?", userID).
+		Order("priority").Order("id").
+		Find(&summaries).Error
+	if err != nil {
+		return nil, err
+	}
+	return summaries, nil
+}
+
 // DeleteProvider removes one of userID's providers.
 func DeleteProvider(ctx context.Context, db *gorm.DB, userID, id uuid.UUID) error {
 	result := db.WithContext(ctx).

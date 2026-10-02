@@ -96,6 +96,32 @@ func ListAgents(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
+// ListAgentNames returns the name of every agent of the caller.
+//
+//	@Summary		List agent names
+//	@Description	Returns the name of all of the caller's agents, ordered by name. The rest of each agent is left out. Not paginated: a user has few of them.
+//	@Tags			agents
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Success		200	{array}		string
+//	@Failure		401	{object}	utils.ErrorResponse
+//	@Failure		500	{object}	utils.ErrorResponse
+//	@Router			/agents/names [get]
+func ListAgentNames(c *gin.Context) {
+	actor, ok := middlewares.CurrentUser(c)
+	if !ok {
+		utils.Abort(c, utils.Unauthorized, "Authentication credentials were not provided.")
+		return
+	}
+
+	names, err := service.ListAgentNames(c.Request.Context(), actor.ID)
+	if err != nil {
+		abortInternal(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, names)
+}
+
 // CreateAgent creates an agent.
 //
 //	@Summary		Create an agent
@@ -258,6 +284,7 @@ func AgentsRouter(r *gin.Engine) {
 	agents := r.Group("/api/agents", authOrAPIKey())
 	agents.GET("", ListAgents)
 	agents.POST("", CreateAgent)
+	agents.GET("/names", ListAgentNames)
 	agents.GET("/:uuid", GetAgent)
 	agents.PUT("/:uuid", UpdateAgent)
 	agents.DELETE("/:uuid", DeleteAgent)

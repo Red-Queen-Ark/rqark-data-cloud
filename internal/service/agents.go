@@ -104,6 +104,11 @@ func ListAgents(ctx context.Context, userID uuid.UUID) ([]repository.Agent, erro
 	return repository.ListAgents(ctx, config.DB, userID)
 }
 
+// ListAgentNames returns the names of all agents owned by userID.
+func ListAgentNames(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	return repository.ListAgentNames(ctx, config.DB, userID)
+}
+
 // GetAgent loads a single agent owned by userID.
 func GetAgent(ctx context.Context, userID, id uuid.UUID) (*repository.Agent, error) {
 	return repository.GetAgentByID(ctx, config.DB, userID, id)

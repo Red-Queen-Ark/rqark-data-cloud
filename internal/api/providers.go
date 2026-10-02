@@ -36,6 +36,14 @@ type ProviderDTO struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
+// ProviderSummaryDTO is the lightweight provider representation returned by
+// GET /api/providers/models: enough to label a provider without exposing its
+// credentials.
+type ProviderSummaryDTO struct {
+	Name      string `json:"name" example:"primary"`
+	ModelName string `json:"model_name" example:"kimi-k3"`
+}
+
 // CreateProviderRequest is the body of POST /api/providers.
 type CreateProviderRequest struct {
 	Name             string   `json:"name" example:"deepseek-v4-pro"`
@@ -158,6 +166,40 @@ func ListProviders(c *gin.Context) {
 	items := make([]ProviderDTO, 0, len(providers))
 	for i := range providers {
 		items = append(items, toProviderDTO(&providers[i]))
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+// ListProviderModels returns the name and model_name of every provider of the caller.
+//
+//	@Summary		List provider models
+//	@Description	Returns name and model_name for all of the caller's providers, lowest priority first. The remaining provider fields, credentials included, are left out. Not paginated: a user has few of them.
+//	@Tags			providers
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Success		200	{array}		ProviderSummaryDTO
+//	@Failure		401	{object}	utils.ErrorResponse
+//	@Failure		500	{object}	utils.ErrorResponse
+//	@Router			/providers/models [get]
+func ListProviderModels(c *gin.Context) {
+	actor, ok := middlewares.CurrentUser(c)
+	if !ok {
+		utils.Abort(c, utils.Unauthorized, "Authentication credentials were not provided.")
+		return
+	}
+
+	summaries, err := service.ListProviderSummaries(c.Request.Context(), actor.ID)
+	if err != nil {
+		abortInternal(c, err)
+		return
+	}
+
+	items := make([]ProviderSummaryDTO, 0, len(summaries))
+	for i := range summaries {
+		items = append(items, ProviderSummaryDTO{
+			Name:      summaries[i].Name,
+			ModelName: summaries[i].ModelName,
+		})
 	}
 	c.JSON(http.StatusOK, items)
 }
@@ -341,6 +383,7 @@ func ProvidersRouter(r *gin.Engine) {
 	providers := r.Group("/api/providers", authOrAPIKey())
 	providers.GET("", ListProviders)
 	providers.POST("", CreateProvider)
+	providers.GET("/models", ListProviderModels)
 	providers.GET("/:uuid", GetProvider)
 	providers.PUT("/:uuid", UpdateProvider)
 	providers.DELETE("/:uuid", DeleteProvider)
