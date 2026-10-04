@@ -20,6 +20,7 @@ import (
 type SessionDTO struct {
 	ID        uuid.UUID                    `json:"id" example:"6b1c1f3a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	Title     string                       `json:"title" example:"Trip planning"`
+	Source    string                       `json:"source" example:"TUI"`
 	PlanItems []repository.SessionPlanItem `json:"plan_items"`
 	CreatedAt time.Time                    `json:"created_at"`
 	UpdatedAt time.Time                    `json:"updated_at"`
@@ -38,10 +39,12 @@ type SessionMessageDTO struct {
 
 // CreateSessionRequest is the body of POST /api/sessions. The app may bring its
 // own uuid, the one it names the session's local file after; when it does not
-// the cloud mints one.
+// the cloud mints one. Source names the application the session was uploaded
+// from and defaults to the empty string.
 type CreateSessionRequest struct {
 	UUID      *string                       `json:"uuid" example:"6b1c1f3a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	Title     *string                       `json:"title" example:"Trip planning"`
+	Source    *string                       `json:"source" example:"TUI"`
 	PlanItems *[]repository.SessionPlanItem `json:"plan_items"`
 }
 
@@ -50,6 +53,7 @@ type CreateSessionRequest struct {
 // session's messages wholesale.
 type UpdateSessionRequest struct {
 	Title     *string                       `json:"title"`
+	Source    *string                       `json:"source"`
 	PlanItems *[]repository.SessionPlanItem `json:"plan_items"`
 	History   *[]map[string]any             `json:"history"`
 }
@@ -64,6 +68,7 @@ func toSessionDTO(session *repository.Session) SessionDTO {
 	return SessionDTO{
 		ID:        session.ID,
 		Title:     session.Title,
+		Source:    session.Source,
 		PlanItems: planItems,
 		CreatedAt: session.CreatedAt,
 		UpdatedAt: session.UpdatedAt,
@@ -83,13 +88,14 @@ func toSessionMessageDTO(message *repository.SessionMessage) SessionMessageDTO {
 // ListSessions returns every session of the caller.
 //
 //	@Summary		List sessions
-//	@Description	Returns all of the caller's sessions, most recently updated first, without their messages. Not paginated: the app syncs its whole session set in one go.
+//	@Description	Returns all of the caller's sessions, most recently updated first, without their messages. Not paginated: the app syncs its whole session set in one go. A source query keeps only sessions uploaded from that application; without one every source is returned.
 //	@Tags			sessions
 //	@Security		BearerAuth
 //	@Produce		json
-//	@Success		200	{array}		SessionDTO
-//	@Failure		401	{object}	utils.ErrorResponse
-//	@Failure		500	{object}	utils.ErrorResponse
+//	@Param			source	query		string	false	"Keep only sessions uploaded from this application"
+//	@Success		200		{array}		SessionDTO
+//	@Failure		401		{object}	utils.ErrorResponse
+//	@Failure		500		{object}	utils.ErrorResponse
 //	@Router			/sessions [get]
 func ListSessions(c *gin.Context) {
 	actor, ok := middlewares.CurrentUser(c)
@@ -98,7 +104,12 @@ func ListSessions(c *gin.Context) {
 		return
 	}
 
-	sessions, err := service.ListSessions(c.Request.Context(), actor.ID)
+	var source *string
+	if value, present := c.GetQuery("source"); present {
+		source = &value
+	}
+
+	sessions, err := service.ListSessions(c.Request.Context(), actor.ID, source)
 	if err != nil {
 		abortInternal(c, err)
 		return
@@ -151,6 +162,9 @@ func CreateSession(c *gin.Context) {
 	}
 	if request.Title != nil {
 		in.Title = *request.Title
+	}
+	if request.Source != nil {
+		in.Source = *request.Source
 	}
 	if request.PlanItems != nil {
 		in.PlanItems = *request.PlanItems
@@ -234,6 +248,7 @@ func UpdateSession(c *gin.Context) {
 
 	session, err := service.UpdateSession(c.Request.Context(), actor.ID, id, service.UpdateSessionInput{
 		Title:     request.Title,
+		Source:    request.Source,
 		PlanItems: request.PlanItems,
 		History:   request.History,
 	})

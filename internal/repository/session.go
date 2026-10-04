@@ -26,11 +26,13 @@ type SessionPlanItem struct {
 // Session is the sessions table. Its primary key is the uuid the app generated
 // for the session locally rather than one minted here: the app names its
 // per-session file and its per-directory cache after it, so both sides have to
-// agree on the value.
+// agree on the value. Source names the application the session was uploaded
+// from; it defaults to the empty string for a session that names no source.
 type Session struct {
 	ID        uuid.UUID         `gorm:"type:uuid;primaryKey"`
 	UserID    uuid.UUID         `gorm:"type:uuid;not null;index"`
 	Title     string            `gorm:"type:varchar(255);not null;default:''"`
+	Source    string            `gorm:"type:varchar(32);not null;default:''"`
 	PlanItems []SessionPlanItem `gorm:"serializer:json;type:jsonb;not null;default:'[]'"`
 	CreatedAt time.Time         `gorm:"not null"`
 	UpdatedAt time.Time         `gorm:"not null"`
@@ -65,13 +67,16 @@ func SaveSession(ctx context.Context, db *gorm.DB, session *Session) error {
 
 // ListSessions returns all of userID's sessions, most recently updated first.
 // The list is not paginated: a session is the cloud copy of one local file, and
-// the app wants the whole set at once, the same way it reads its agents.
-func ListSessions(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]Session, error) {
+// the app wants the whole set at once, the same way it reads its agents. A
+// non-nil source keeps only sessions uploaded from that application; a nil one
+// keeps every source, the empty string included.
+func ListSessions(ctx context.Context, db *gorm.DB, userID uuid.UUID, source *string) ([]Session, error) {
+	query := db.WithContext(ctx).Where("user_id = ?", userID)
+	if source != nil {
+		query = query.Where("source = ?", *source)
+	}
 	var sessions []Session
-	err := db.WithContext(ctx).
-		Where("user_id = ?", userID).
-		Order("updated_at DESC").Order("id").
-		Find(&sessions).Error
+	err := query.Order("updated_at DESC").Order("id").Find(&sessions).Error
 	if err != nil {
 		return nil, err
 	}

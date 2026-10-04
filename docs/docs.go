@@ -1670,7 +1670,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns all of the caller's sessions, most recently updated first, without their messages. Not paginated: the app syncs its whole session set in one go.",
+                "description": "Returns all of the caller's sessions, most recently updated first, without their messages. Not paginated: the app syncs its whole session set in one go. A source query keeps only sessions uploaded from that application; without one every source is returned.",
                 "produces": [
                     "application/json"
                 ],
@@ -1678,6 +1678,14 @@ const docTemplate = `{
                     "sessions"
                 ],
                 "summary": "List sessions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Keep only sessions uploaded from this application",
+                        "name": "source",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2840,6 +2848,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/repository.SessionPlanItem"
                     }
                 },
+                "source": {
+                    "type": "string",
+                    "example": "TUI"
+                },
                 "title": {
                     "type": "string",
                     "example": "Trip planning"
@@ -3073,6 +3085,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/repository.SessionPlanItem"
                     }
                 },
+                "source": {
+                    "type": "string",
+                    "example": "TUI"
+                },
                 "title": {
                     "type": "string",
                     "example": "Trip planning"
@@ -3245,6 +3261,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/repository.SessionPlanItem"
                     }
+                },
+                "source": {
+                    "type": "string"
                 },
                 "title": {
                     "type": "string"

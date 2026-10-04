@@ -16,6 +16,9 @@ import (
 // maxSessionTitleLen is the width of the sessions.title column.
 const maxSessionTitleLen = 255
 
+// maxSessionSourceLen is the width of the sessions.source column.
+const maxSessionSourceLen = 32
+
 // sessionRoles are the roles a history entry may carry. The whole message is
 // stored opaquely, so role is the one part of it the cloud does read: it is
 // copied out into a column of its own.
@@ -28,10 +31,13 @@ var sessionRoles = map[string]bool{
 }
 
 // CreateSessionInput is the body accepted by POST /api/sessions. ID is the uuid
-// the app generated for the session; when it is nil the cloud mints one.
+// the app generated for the session; when it is nil the cloud mints one. Source
+// names the application the session was uploaded from; an empty string is kept
+// as the column's default.
 type CreateSessionInput struct {
 	ID        *uuid.UUID
 	Title     string
+	Source    string
 	PlanItems []repository.SessionPlanItem
 }
 
@@ -39,15 +45,19 @@ type CreateSessionInput struct {
 // non-nil History replaces the session's messages wholesale.
 type UpdateSessionInput struct {
 	Title     *string
+	Source    *string
 	PlanItems *[]repository.SessionPlanItem
 	History   *[]map[string]any
 }
 
-// CreateSession validates the title and stores a session under userID. The
-// session keeps the caller's uuid when one is given and the cloud mints one
-// otherwise.
+// CreateSession validates the title and source and stores a session under
+// userID. The session keeps the caller's uuid when one is given and the cloud
+// mints one otherwise.
 func CreateSession(ctx context.Context, userID uuid.UUID, in CreateSessionInput) (*repository.Session, error) {
 	if err := validateSessionTitle(in.Title); err != nil {
+		return nil, err
+	}
+	if err := validateSessionSource(in.Source); err != nil {
 		return nil, err
 	}
 
@@ -55,6 +65,7 @@ func CreateSession(ctx context.Context, userID uuid.UUID, in CreateSessionInput)
 		ID:        uuid.New(),
 		UserID:    userID,
 		Title:     in.Title,
+		Source:    in.Source,
 		PlanItems: in.PlanItems,
 	}
 	if in.ID != nil {
@@ -73,6 +84,11 @@ func CreateSession(ctx context.Context, userID uuid.UUID, in CreateSessionInput)
 func UpdateSession(ctx context.Context, userID, id uuid.UUID, in UpdateSessionInput) (*repository.Session, error) {
 	if in.Title != nil {
 		if err := validateSessionTitle(*in.Title); err != nil {
+			return nil, err
+		}
+	}
+	if in.Source != nil {
+		if err := validateSessionSource(*in.Source); err != nil {
 			return nil, err
 		}
 	}
@@ -95,6 +111,9 @@ func UpdateSession(ctx context.Context, userID, id uuid.UUID, in UpdateSessionIn
 
 		if in.Title != nil {
 			stored.Title = *in.Title
+		}
+		if in.Source != nil {
+			stored.Source = *in.Source
 		}
 		if in.PlanItems != nil {
 			stored.PlanItems = *in.PlanItems
@@ -126,9 +145,10 @@ func DeleteSession(ctx context.Context, userID, id uuid.UUID) error {
 }
 
 // ListSessions returns all of userID's session metadata. The list is not
-// paginated, matching the agent and provider listings.
-func ListSessions(ctx context.Context, userID uuid.UUID) ([]repository.Session, error) {
-	return repository.ListSessions(ctx, config.DB, userID)
+// paginated, matching the agent and provider listings. A non-nil source keeps
+// only sessions uploaded from that application; a nil one keeps every source.
+func ListSessions(ctx context.Context, userID uuid.UUID, source *string) ([]repository.Session, error) {
+	return repository.ListSessions(ctx, config.DB, userID, source)
 }
 
 // GetSession loads a single session owned by userID.
@@ -202,6 +222,15 @@ func sessionMessageCreatedAt(data map[string]any) (*time.Time, error) {
 func validateSessionTitle(title string) error {
 	if len(title) > maxSessionTitleLen {
 		return &ValidationError{Message: "title is too long."}
+	}
+	return nil
+}
+
+// validateSessionSource checks that source fits its column. An empty source is
+// allowed: it is the column default for a session that names no source.
+func validateSessionSource(source string) error {
+	if len(source) > maxSessionSourceLen {
+		return &ValidationError{Message: "source is too long."}
 	}
 	return nil
 }

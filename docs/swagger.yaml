@@ -145,6 +145,9 @@ definitions:
         items:
           $ref: '#/definitions/repository.SessionPlanItem'
         type: array
+      source:
+        example: TUI
+        type: string
       title:
         example: Trip planning
         type: string
@@ -309,6 +312,9 @@ definitions:
         items:
           $ref: '#/definitions/repository.SessionPlanItem'
         type: array
+      source:
+        example: TUI
+        type: string
       title:
         example: Trip planning
         type: string
@@ -424,6 +430,8 @@ definitions:
         items:
           $ref: '#/definitions/repository.SessionPlanItem'
         type: array
+      source:
+        type: string
       title:
         type: string
     type: object
@@ -1684,7 +1692,13 @@ paths:
     get:
       description: 'Returns all of the caller''s sessions, most recently updated first,
         without their messages. Not paginated: the app syncs its whole session set
-        in one go.'
+        in one go. A source query keeps only sessions uploaded from that application;
+        without one every source is returned.'
+      parameters:
+      - description: Keep only sessions uploaded from this application
+        in: query
+        name: source
+        type: string
       produces:
       - application/json
       responses:
