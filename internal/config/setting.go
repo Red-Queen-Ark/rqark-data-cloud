@@ -36,7 +36,7 @@ func init() {
 	RedisPort = GetEnvInt("REDIS_PORT", 6379)
 	SecretKey = GetEnv("SECRET_KEY", "")
 	ResetPasswordURL = GetEnv("RESET_PASSWORD_URL", "")
-	AccessTokenTTL = 15 * time.Minute
+	AccessTokenTTL = 60 * time.Minute
 	RefreshTokenTTL = 720 * time.Hour
 }
 
