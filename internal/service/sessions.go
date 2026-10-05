@@ -11,6 +11,7 @@ import (
 
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
+	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
 )
 
 // maxSessionTitleLen is the width of the sessions.title column.
@@ -186,6 +187,12 @@ func buildSessionMessages(sessionID uuid.UUID, history []map[string]any) ([]repo
 				Message: fmt.Sprintf("history[%d].created_at must be an RFC 3339 timestamp.", i),
 			}
 		}
+
+		// A message body is stored opaquely, but jsonb still rejects U+0000,
+		// which a Windows tool output such as "wsl --status" carries: it is
+		// UTF-16LE and puts a NUL after every character. Strip the NULs so one
+		// such message cannot fail the whole session save.
+		utils.StripNullChars(data)
 
 		messages = append(messages, repository.SessionMessage{
 			SessionID: sessionID,
