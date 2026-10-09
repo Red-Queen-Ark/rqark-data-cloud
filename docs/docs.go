@@ -2071,6 +2071,160 @@ const docTemplate = `{
                 }
             }
         },
+        "/user-config": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all of the caller's config entries, ordered by key. Not paginated: the app treats them as one local config file and syncs the whole set at once.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user-config"
+                ],
+                "summary": "List user config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.UserConfigDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/user-config/{key}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Upserts one config entry of the caller: the value of an existing key is overwritten, a key that does not exist is created.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user-config"
+                ],
+                "summary": "Set a user config entry",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Config key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Config value",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.PutUserConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.UserConfigDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Hard delete of one of the caller's config entries.",
+                "tags": [
+                    "user-config"
+                ],
+                "summary": "Delete a user config entry",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Config key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/users": {
             "get": {
                 "security": [
@@ -3026,6 +3180,14 @@ const docTemplate = `{
                 }
             }
         },
+        "api.PutUserConfigRequest": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "object"
+                }
+            }
+        },
         "api.RefreshRequest": {
             "type": "object",
             "properties": {
@@ -3293,6 +3455,28 @@ const docTemplate = `{
                 }
             }
         },
+        "api.UserConfigDTO": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "3f9a1c7e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "key": {
+                    "type": "string",
+                    "example": "theme"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "object"
+                }
+            }
+        },
         "api.UserDTO": {
             "type": "object",
             "properties": {
@@ -3530,6 +3714,10 @@ const docTemplate = `{
         {
             "description": "API keys owned by the authenticated user.",
             "name": "api-keys"
+        },
+        {
+            "description": "Per-user settings owned by the authenticated user.",
+            "name": "user-config"
         }
     ]
 }`
