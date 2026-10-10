@@ -2795,6 +2795,26 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/version": {
+            "get": {
+                "description": "Returns the version of the running binary. It is injected at build time from the release tag, so a development build reports \"dev\". Does not touch PostgreSQL or Redis.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "version"
+                ],
+                "summary": "Build version",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.VersionResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -3516,6 +3536,15 @@ const docTemplate = `{
                 }
             }
         },
+        "api.VersionResponse": {
+            "type": "object",
+            "properties": {
+                "version": {
+                    "type": "string",
+                    "example": "v0.1.6"
+                }
+            }
+        },
         "repository.AgentPrompt": {
             "type": "object",
             "properties": {
@@ -3682,6 +3711,10 @@ const docTemplate = `{
         {
             "description": "Health check endpoint.",
             "name": "ping"
+        },
+        {
+            "description": "Build version of the running service.",
+            "name": "version"
         },
         {
             "description": "OpenAPI specification endpoints.",

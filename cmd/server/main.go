@@ -23,6 +23,8 @@ import (
 //
 // @tag.name					ping
 // @tag.description			Health check endpoint.
+// @tag.name					version
+// @tag.description			Build version of the running service.
 // @tag.name					swagger
 // @tag.description			OpenAPI specification endpoints.
 // @tag.name					users

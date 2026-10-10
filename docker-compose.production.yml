@@ -25,6 +25,8 @@ services:
     build:
       context: .
       dockerfile: docker/dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
     container_name: ${PROJECT_NAME}-server
     environment:
       - POSTGRES_SERVER=pgsql

@@ -18,6 +18,7 @@ import (
 // APIRouter registers every route of the service.
 func APIRouter(r *gin.Engine) {
 	PingRouter(r)
+	VersionRouter(r)
 	SwaggerRouter(r)
 	AuthRouter(r)
 	UsersRouter(r)

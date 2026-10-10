@@ -498,6 +498,12 @@ definitions:
         example: boss
         type: string
     type: object
+  api.VersionResponse:
+    properties:
+      version:
+        example: v0.1.6
+        type: string
+    type: object
   repository.AgentPrompt:
     properties:
       name:
@@ -2463,6 +2469,21 @@ paths:
       summary: Change the current user's password
       tags:
       - users
+  /version:
+    get:
+      description: Returns the version of the running binary. It is injected at build
+        time from the release tag, so a development build reports "dev". Does not
+        touch PostgreSQL or Redis.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.VersionResponse'
+      summary: Build version
+      tags:
+      - version
 securityDefinitions:
   BearerAuth:
     description: Bearer <access_token>
@@ -2473,6 +2494,8 @@ swagger: "2.0"
 tags:
 - description: Health check endpoint.
   name: ping
+- description: Build version of the running service.
+  name: version
 - description: OpenAPI specification endpoints.
   name: swagger
 - description: User accounts.
