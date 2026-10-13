@@ -1,0 +1,68 @@
+package repository
+
+import (
+	"testing"
+
+	"github.com/google/uuid"
+)
+
+// TestOrderViewerProvidersSortsByThePriorityThatApplies covers the merge of the
+// owner's priority and the viewer's override: an override replaces the stored
+// value, a provider without one keeps it, and the result is ordered lowest
+// first.
+func TestOrderViewerProvidersSortsByThePriorityThatApplies(t *testing.T) {
+	ownerLow := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	ownerHigh := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	overridden := uuid.MustParse("00000000-0000-0000-0000-000000000003")
+
+	views := orderViewerProviders([]Provider{
+		{ID: ownerHigh, Priority: 50},
+		{ID: ownerLow, Priority: 10},
+		{ID: overridden, Priority: 99},
+	}, map[uuid.UUID]int{overridden: 1})
+
+	want := []uuid.UUID{overridden, ownerLow, ownerHigh}
+	if len(views) != len(want) {
+		t.Fatalf("order = %v, want %v", viewerIDs(views), want)
+	}
+	for i := range want {
+		if views[i].ID != want[i] {
+			t.Fatalf("order = %v, want %v", viewerIDs(views), want)
+		}
+	}
+
+	if views[0].OverridePriority == nil || *views[0].OverridePriority != 1 {
+		t.Errorf("the overridden provider carries override %v, want 1", views[0].OverridePriority)
+	}
+	if views[1].OverridePriority != nil {
+		t.Errorf("a provider with no override carries %v, want nil", views[1].OverridePriority)
+	}
+	if views[0].EffectivePriority() != 1 || views[1].EffectivePriority() != 10 {
+		t.Errorf("effective priorities = %d, %d, want 1, 10", views[0].EffectivePriority(), views[1].EffectivePriority())
+	}
+}
+
+// TestOrderViewerProvidersBreaksTiesOnID covers the tie: two providers with the
+// same effective priority come out in id order, so the listing is stable.
+func TestOrderViewerProvidersBreaksTiesOnID(t *testing.T) {
+	first := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	second := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+
+	views := orderViewerProviders([]Provider{
+		{ID: second, Priority: 5},
+		{ID: first, Priority: 5},
+	}, nil)
+
+	if len(views) != 2 || views[0].ID != first || views[1].ID != second {
+		t.Errorf("order = %v, want [%s %s]", viewerIDs(views), first, second)
+	}
+}
+
+// viewerIDs lists the ids of the ordered views, for a readable failure.
+func viewerIDs(views []ViewerProvider) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(views))
+	for i := range views {
+		ids = append(ids, views[i].ID)
+	}
+	return ids
+}

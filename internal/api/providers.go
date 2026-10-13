@@ -17,7 +17,9 @@ import (
 // ProviderDTO is the provider representation returned by every provider
 // endpoint. The owner is left out: a provider is only ever visible to the user
 // it belongs to, or to anyone once its owner shares it. `owned` tells the
-// caller whether it may change the row.
+// caller whether it may change the row, and `priority` is the value that
+// applies to the caller: its own `priority_override` when it set one, the
+// owner's priority otherwise.
 type ProviderDTO struct {
 	ID               uuid.UUID `json:"id" example:"7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	Name             string    `json:"name" example:"deepseek-v4-pro"`
@@ -35,6 +37,10 @@ type ProviderDTO struct {
 	Combine          bool      `json:"combine" example:"false"`
 	IsPublic         bool      `json:"is_public" example:"false"`
 	Owned            bool      `json:"owned" example:"true"`
+	// PriorityOverride is the caller's own priority for a shared provider, or
+	// null when the caller follows the owner's priority. It is always null on a
+	// provider the caller owns: that priority is edited through the provider.
+	PriorityOverride *int      `json:"priority_override" example:"1"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
@@ -121,18 +127,28 @@ func optional[T any](value *T, provided bool) utils.Optional[T] {
 	return utils.Optional[T]{Set: provided, Value: value}
 }
 
-// toProviderDTO converts a stored provider into its wire form, nullable columns
-// and all: a NULL column is reported as null, never as 0 or false. `viewerID` is
-// the caller, and decides the derived `owned` flag: only the owner may change a
-// provider, and another user only ever reaches a shared one.
-func toProviderDTO(provider *repository.Provider, viewerID uuid.UUID) ProviderDTO {
+// SetProviderPriorityRequest is the body of PUT /api/providers/{uuid}/priority.
+// priority is required: the endpoint writes an override rather than clearing
+// one, so a body without it is rejected.
+type SetProviderPriorityRequest struct {
+	Priority *int `json:"priority" example:"1"`
+}
+
+// toProviderDTO converts a provider a viewer may use into its wire form,
+// nullable columns and all: a NULL column is reported as null, never as 0 or
+// false. `viewerID` is the caller, and decides the derived `owned` flag: only
+// the owner may change a provider, and another user only ever reaches a shared
+// one. `priority` is the value that applies to the caller, and
+// `priority_override` reports whether that value is the caller's own.
+func toProviderDTO(view *repository.ViewerProvider, viewerID uuid.UUID) ProviderDTO {
+	provider := &view.Provider
 	return ProviderDTO{
 		ID:               provider.ID,
 		Name:             provider.Name,
 		ModelName:        provider.ModelName,
 		APIKey:           provider.APIKey,
 		APIBase:          provider.APIBase,
-		Priority:         provider.Priority,
+		Priority:         view.EffectivePriority(),
 		ReasoningEffort:  provider.ReasoningEffort,
 		Thinking:         provider.Thinking,
 		Temperature:      provider.Temperature,
@@ -143,15 +159,22 @@ func toProviderDTO(provider *repository.Provider, viewerID uuid.UUID) ProviderDT
 		Combine:          provider.Combine,
 		IsPublic:         provider.IsPublic,
 		Owned:            provider.UserID == viewerID,
+		PriorityOverride: view.OverridePriority,
 		CreatedAt:        provider.CreatedAt,
 		UpdatedAt:        provider.UpdatedAt,
 	}
 }
 
+// ownedView wraps a provider the caller owns, which by definition carries no
+// priority override.
+func ownedView(provider *repository.Provider) *repository.ViewerProvider {
+	return &repository.ViewerProvider{Provider: *provider}
+}
+
 // ListProviders returns every provider the caller may use.
 //
 //	@Summary		List providers
-//	@Description	Returns the caller's own providers plus every provider another user shares, lowest priority first. A shared provider carries `is_public` true and `owned` false, and cannot be changed by anyone but its owner. Not paginated: a user has few of them.
+//	@Description	Returns the caller's own providers plus every provider another user shares, ordered by the priority that applies to the caller. That is the caller's own `priority_override` on a shared provider when one is set, the owner's `priority` otherwise. A shared provider carries `is_public` true and `owned` false, and only its owner changes its fields. Not paginated: a user has few of them.
 //	@Tags			providers
 //	@Security		BearerAuth
 //	@Produce		json
@@ -182,7 +205,7 @@ func ListProviders(c *gin.Context) {
 // ListProviderModels returns the name and model_name of every provider the caller may use.
 //
 //	@Summary		List provider models
-//	@Description	Returns name and model_name for the caller's own providers plus the ones other users share, lowest priority first. The remaining provider fields, credentials included, are left out. Not paginated: a user has few of them.
+//	@Description	Returns name and model_name for the caller's own providers plus the ones other users share, in the same order as GET /api/providers. The remaining provider fields, credentials included, are left out. Not paginated: a user has few of them.
 //	@Tags			providers
 //	@Security		BearerAuth
 //	@Produce		json
@@ -264,13 +287,13 @@ func CreateProvider(c *gin.Context) {
 	}
 
 	c.Header("Location", "/api/providers/"+provider.ID.String())
-	c.JSON(http.StatusCreated, toProviderDTO(provider, actor.ID))
+	c.JSON(http.StatusCreated, toProviderDTO(ownedView(provider), actor.ID))
 }
 
 // GetProvider returns one provider.
 //
 //	@Summary		Get a provider
-//	@Description	Returns one of the caller's providers, api_key included. Another user's provider is reported as 404.
+//	@Description	Returns a provider the caller may use: one it owns, or one another user shares. api_key is included, since the client needs it to reach the model. A provider the caller may not use is reported as 404.
 //	@Tags			providers
 //	@Security		BearerAuth
 //	@Produce		json
@@ -354,7 +377,7 @@ func UpdateProvider(c *gin.Context) {
 		abortError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toProviderDTO(provider, actor.ID))
+	c.JSON(http.StatusOK, toProviderDTO(ownedView(provider), actor.ID))
 }
 
 // DeleteProvider deletes one provider.
@@ -388,11 +411,90 @@ func DeleteProvider(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// SetProviderPriority sets the caller's own priority for a shared provider.
+//
+//	@Summary		Set a provider priority override
+//	@Description	Sets the priority the caller uses to order a provider another user shared. The provider's own fields, credentials included, stay with its owner; only the caller's ordering changes, and every other user is left alone. A provider the caller owns is reported as 400 (its priority is its own field), a provider the caller may not use as 404.
+//	@Tags			providers
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			uuid	path		string						true	"Provider ID"	format(uuid)
+//	@Param			request	body		SetProviderPriorityRequest	true	"Priority override"
+//	@Success		200		{object}	ProviderDTO
+//	@Failure		400		{object}	utils.ErrorResponse
+//	@Failure		401		{object}	utils.ErrorResponse
+//	@Failure		404		{object}	utils.ErrorResponse
+//	@Failure		500		{object}	utils.ErrorResponse
+//	@Router			/providers/{uuid}/priority [put]
+func SetProviderPriority(c *gin.Context) {
+	actor, ok := middlewares.CurrentUser(c)
+	if !ok {
+		utils.Abort(c, utils.Unauthorized, "Authentication credentials were not provided.")
+		return
+	}
+	id, ok := parseUUIDParam(c, "uuid")
+	if !ok {
+		return
+	}
+
+	var request SetProviderPriorityRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		abortBadRequest(c, "Malformed request body.")
+		return
+	}
+	if request.Priority == nil {
+		abortBadRequest(c, "priority is required.")
+		return
+	}
+
+	view, err := service.SetProviderPriority(c.Request.Context(), actor.ID, id, *request.Priority)
+	if err != nil {
+		abortError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, toProviderDTO(view, actor.ID))
+}
+
+// DeleteProviderPriority clears the caller's priority override for a shared
+// provider.
+//
+//	@Summary		Clear a provider priority override
+//	@Description	Drops the caller's priority override for a provider another user shared, so the owner's priority applies again. A provider the caller owns is reported as 400, a provider the caller may not use as 404, and a shared provider the caller never overrode as 404.
+//	@Tags			providers
+//	@Security		BearerAuth
+//	@Param			uuid	path	string	true	"Provider ID"	format(uuid)
+//	@Success		204
+//	@Failure		400	{object}	utils.ErrorResponse
+//	@Failure		401	{object}	utils.ErrorResponse
+//	@Failure		404	{object}	utils.ErrorResponse
+//	@Failure		500	{object}	utils.ErrorResponse
+//	@Router			/providers/{uuid}/priority [delete]
+func DeleteProviderPriority(c *gin.Context) {
+	actor, ok := middlewares.CurrentUser(c)
+	if !ok {
+		utils.Abort(c, utils.Unauthorized, "Authentication credentials were not provided.")
+		return
+	}
+	id, ok := parseUUIDParam(c, "uuid")
+	if !ok {
+		return
+	}
+
+	if err := service.DeleteProviderPriority(c.Request.Context(), actor.ID, id); err != nil {
+		abortError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // ProvidersRouter registers the provider routes. Providers hold credentials, so
-// every route is scoped to the caller and none of them has a superuser path: a
-// shared provider is read through the caller's own list, not by id. An access
-// token or an API key is accepted: a provider is what a client needs before it
-// can talk to a model.
+// none of them has a superuser path: the ones that change a provider are scoped
+// to its owner, and a shared provider is reached through the caller's own list
+// or by id. The priority route is the one a viewer of a shared provider writes
+// to, and it only touches the viewer's own ordering. An access token or an API
+// key is accepted: a provider is what a client needs before it can talk to a
+// model.
 func ProvidersRouter(r *gin.Engine) {
 	providers := r.Group("/api/providers", authOrAPIKey())
 	providers.GET("", ListProviders)
@@ -401,4 +503,6 @@ func ProvidersRouter(r *gin.Engine) {
 	providers.GET("/:uuid", GetProvider)
 	providers.PUT("/:uuid", UpdateProvider)
 	providers.DELETE("/:uuid", DeleteProvider)
+	providers.PUT("/:uuid/priority", SetProviderPriority)
+	providers.DELETE("/:uuid/priority", DeleteProviderPriority)
 }

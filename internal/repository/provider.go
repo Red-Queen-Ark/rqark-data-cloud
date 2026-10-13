@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,6 +59,19 @@ func GetProviderByID(ctx context.Context, db *gorm.DB, userID, id uuid.UUID) (*P
 	return &provider, nil
 }
 
+// GetVisibleProviderByID loads a provider the viewer may use by primary key: one
+// it owns, or a public one another user shares. Any other provider is reported
+// as ErrProviderNotFound, so provider ids cannot be enumerated.
+func GetVisibleProviderByID(ctx context.Context, db *gorm.DB, userID, id uuid.UUID) (*Provider, error) {
+	var provider Provider
+	err := db.WithContext(ctx).
+		First(&provider, "id = ? AND (user_id = ? OR is_public = ?)", id, userID, true).Error
+	if err != nil {
+		return nil, providerLookupError(err)
+	}
+	return &provider, nil
+}
+
 // CreateProvider inserts a provider.
 func CreateProvider(ctx context.Context, db *gorm.DB, provider *Provider) error {
 	return db.WithContext(ctx).Create(provider).Error
@@ -68,19 +82,44 @@ func SaveProvider(ctx context.Context, db *gorm.DB, provider *Provider) error {
 	return db.WithContext(ctx).Save(provider).Error
 }
 
+// ViewerProvider is a provider as one viewer sees it: the stored row, plus the
+// priority override that viewer set for it, if any. Provider.Priority stays the
+// value the owner stored; EffectivePriority is the one this viewer's ordering
+// uses.
+type ViewerProvider struct {
+	Provider
+	// OverridePriority is the viewer's own priority, or nil when the viewer
+	// follows the owner's priority.
+	OverridePriority *int
+}
+
+// EffectivePriority is the priority that applies to the viewer: its own override
+// when it holds one, the owner's priority otherwise.
+func (v ViewerProvider) EffectivePriority() int {
+	if v.OverridePriority != nil {
+		return *v.OverridePriority
+	}
+	return v.Provider.Priority
+}
+
 // ListProviders returns every provider userID may use: the ones it owns plus
-// the public providers other users share, lowest priority first, which is the
-// order the app tries them in.
-func ListProviders(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]Provider, error) {
-	var providers []Provider
+// the public providers other users share. The result is ordered by the priority
+// that applies to userID, lowest first, which is the order the app tries them
+// in.
+func ListProviders(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]ViewerProvider, error) {
+	providers := []Provider{}
 	err := db.WithContext(ctx).
 		Where("user_id = ? OR is_public = ?", userID, true).
-		Order("priority").Order("id").
 		Find(&providers).Error
 	if err != nil {
 		return nil, err
 	}
-	return providers, nil
+
+	overrides, err := ListProviderPriorities(ctx, db, userID)
+	if err != nil {
+		return nil, err
+	}
+	return orderViewerProviders(providers, overrides), nil
 }
 
 // ProviderSummary is the lightweight provider view: the two fields a client
@@ -90,21 +129,80 @@ type ProviderSummary struct {
 	ModelName string
 }
 
+// providerOrderRow is what ListProviderSummaries reads: the two fields the
+// summary exposes plus the id and priority the ordering needs.
+type providerOrderRow struct {
+	ID        uuid.UUID
+	Priority  int
+	Name      string
+	ModelName string
+}
+
 // ListProviderSummaries returns the name and model_name of every provider
-// userID may use: the ones it owns plus the public providers other users share,
-// lowest priority first, which is the order the app tries them in.
+// userID may use, in the same order ListProviders uses. It reads only the
+// columns the summary needs plus the two the ordering needs, so it never loads
+// a credential.
 func ListProviderSummaries(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]ProviderSummary, error) {
-	summaries := []ProviderSummary{}
+	rows := []providerOrderRow{}
 	err := db.WithContext(ctx).
-		Model(&Provider{}).
-		Select("name", "model_name").
+		Table("providers").
+		Select("id", "priority", "name", "model_name").
 		Where("user_id = ? OR is_public = ?", userID, true).
-		Order("priority").Order("id").
-		Find(&summaries).Error
+		Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
+
+	overrides, err := ListProviderPriorities(ctx, db, userID)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		return lessProvider(rows[i].ID, effectivePriority(rows[i].ID, rows[i].Priority, overrides),
+			rows[j].ID, effectivePriority(rows[j].ID, rows[j].Priority, overrides))
+	})
+
+	summaries := make([]ProviderSummary, 0, len(rows))
+	for i := range rows {
+		summaries = append(summaries, ProviderSummary{Name: rows[i].Name, ModelName: rows[i].ModelName})
+	}
 	return summaries, nil
+}
+
+// orderViewerProviders pairs every provider with the viewer's override and sorts
+// the result by the priority that then applies, lowest first.
+func orderViewerProviders(providers []Provider, overrides map[uuid.UUID]int) []ViewerProvider {
+	views := make([]ViewerProvider, 0, len(providers))
+	for i := range providers {
+		view := ViewerProvider{Provider: providers[i]}
+		if priority, ok := overrides[providers[i].ID]; ok {
+			view.OverridePriority = &priority
+		}
+		views = append(views, view)
+	}
+
+	sort.Slice(views, func(i, j int) bool {
+		return lessProvider(views[i].ID, views[i].EffectivePriority(), views[j].ID, views[j].EffectivePriority())
+	})
+	return views
+}
+
+// effectivePriority is the priority that applies to a viewer for one provider:
+// the viewer's own override when it holds one, the owner's priority otherwise.
+func effectivePriority(providerID uuid.UUID, ownerPriority int, overrides map[uuid.UUID]int) int {
+	if priority, ok := overrides[providerID]; ok {
+		return priority
+	}
+	return ownerPriority
+}
+
+// lessProvider orders two providers by the priority that applies to the viewer,
+// lowest first, breaking a tie on id so the order is total and stable.
+func lessProvider(aID uuid.UUID, aPriority int, bID uuid.UUID, bPriority int) bool {
+	if aPriority != bPriority {
+		return aPriority < bPriority
+	}
+	return aID.String() < bID.String()
 }
 
 // DeleteProvider removes one of userID's providers.

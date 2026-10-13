@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 
@@ -168,8 +169,9 @@ func DeleteProvider(ctx context.Context, userID, id uuid.UUID) error {
 }
 
 // ListProviders returns every provider the caller may use: the ones it owns
-// plus the ones other users share.
-func ListProviders(ctx context.Context, userID uuid.UUID) ([]repository.Provider, error) {
+// plus the ones other users share, ordered by the priority that applies to the
+// caller.
+func ListProviders(ctx context.Context, userID uuid.UUID) ([]repository.ViewerProvider, error) {
 	return repository.ListProviders(ctx, config.DB, userID)
 }
 
@@ -179,9 +181,59 @@ func ListProviderSummaries(ctx context.Context, userID uuid.UUID) ([]repository.
 	return repository.ListProviderSummaries(ctx, config.DB, userID)
 }
 
-// GetProvider loads a single provider owned by userID.
-func GetProvider(ctx context.Context, userID, id uuid.UUID) (*repository.Provider, error) {
-	return repository.GetProviderByID(ctx, config.DB, userID, id)
+// GetProvider loads a single provider the caller may use: one it owns, or one
+// another user shares. The priority that applies to the caller is attached.
+func GetProvider(ctx context.Context, userID, id uuid.UUID) (*repository.ViewerProvider, error) {
+	provider, err := repository.GetVisibleProviderByID(ctx, config.DB, userID, id)
+	if err != nil {
+		return nil, err
+	}
+
+	view := repository.ViewerProvider{Provider: *provider}
+	override, err := repository.GetProviderPriority(ctx, config.DB, userID, id)
+	switch {
+	case err == nil:
+		view.OverridePriority = &override.Priority
+	case errors.Is(err, repository.ErrProviderPriorityNotFound):
+		// No override: the owner's priority applies.
+	default:
+		return nil, err
+	}
+	return &view, nil
+}
+
+// SetProviderPriority records the caller's own priority for a shared provider.
+// The provider itself stays in its owner's hands: the override only changes the
+// order in which this caller tries the providers it may use. A provider the
+// caller owns carries no override, so asking for one is rejected: its priority
+// is edited through the provider itself.
+func SetProviderPriority(ctx context.Context, userID, id uuid.UUID, priority int) (*repository.ViewerProvider, error) {
+	provider, err := repository.GetVisibleProviderByID(ctx, config.DB, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	if provider.UserID == userID {
+		return nil, &ValidationError{Message: "This provider is yours: set its priority with PUT /api/providers/" + id.String() + "."}
+	}
+
+	override, err := repository.UpsertProviderPriority(ctx, config.DB, userID, id, priority)
+	if err != nil {
+		return nil, err
+	}
+	return &repository.ViewerProvider{Provider: *provider, OverridePriority: &override.Priority}, nil
+}
+
+// DeleteProviderPriority drops the caller's override for a shared provider, so
+// the owner's priority applies again.
+func DeleteProviderPriority(ctx context.Context, userID, id uuid.UUID) error {
+	provider, err := repository.GetVisibleProviderByID(ctx, config.DB, userID, id)
+	if err != nil {
+		return err
+	}
+	if provider.UserID == userID {
+		return &ValidationError{Message: "This provider is yours: it carries no priority override to clear."}
+	}
+	return repository.DeleteProviderPriority(ctx, config.DB, userID, id)
 }
 
 // validateNewProvider checks every field of a create body. Priority and the

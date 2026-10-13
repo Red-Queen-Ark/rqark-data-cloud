@@ -112,6 +112,8 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.BadRequest, "Group not found.")
 	case errors.Is(err, repository.ErrProviderNotFound):
 		utils.Abort(c, utils.NotFound, "Provider not found.")
+	case errors.Is(err, repository.ErrProviderPriorityNotFound):
+		utils.Abort(c, utils.NotFound, "Provider priority not found.")
 	case errors.Is(err, service.ErrProviderPublicForbidden):
 		utils.Abort(c, utils.Forbidden, "Only a superuser can share a provider.")
 	case errors.Is(err, repository.ErrAPIKeyNotFound):
