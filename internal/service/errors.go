@@ -43,6 +43,9 @@ var (
 	ErrSelfDemote = errors.New("service: cannot drop your own superuser rights")
 	// ErrSelfDeactivate is returned when a caller tries to deactivate itself.
 	ErrSelfDeactivate = errors.New("service: cannot deactivate your own account")
+	// ErrProviderPublicForbidden is returned when a caller that is not a
+	// superuser tries to share one of its providers.
+	ErrProviderPublicForbidden = errors.New("service: only a superuser can share a provider")
 )
 
 // uniqueViolation is the PostgreSQL SQLSTATE for a unique index violation.

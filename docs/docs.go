@@ -1350,7 +1350,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns all of the caller's providers, lowest priority first. Not paginated: a user has few of them.",
+                "description": "Returns the caller's own providers plus every provider another user shares, lowest priority first. A shared provider carries ` + "`" + `is_public` + "`" + ` true and ` + "`" + `owned` + "`" + ` false, and cannot be changed by anyone but its owner. Not paginated: a user has few of them.",
                 "produces": [
                     "application/json"
                 ],
@@ -1388,7 +1388,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "The provider belongs to the caller. Answers 201 with a Location header pointing at the new provider.",
+                "description": "The provider belongs to the caller. ` + "`" + `is_public` + "`" + ` shares it with every other user and is reserved to superusers. Answers 201 with a Location header pointing at the new provider.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1435,6 +1435,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -1451,7 +1457,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns name and model_name for all of the caller's providers, lowest priority first. The remaining provider fields, credentials included, are left out. Not paginated: a user has few of them.",
+                "description": "Returns name and model_name for the caller's own providers plus the ones other users share, lowest priority first. The remaining provider fields, credentials included, are left out. Not paginated: a user has few of them.",
                 "produces": [
                     "application/json"
                 ],
@@ -1548,7 +1554,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "A field that is absent keeps its stored value; sending null clears a nullable field. Another user's provider is reported as 404.",
+                "description": "A field that is absent keeps its stored value; sending null clears a nullable field. ` + "`" + `is_public` + "`" + ` shares the provider with every other user and is reserved to superusers. Another user's provider is reported as 404, so only the owner changes a shared one.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1593,6 +1599,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/utils.ErrorResponse"
                         }
@@ -2975,6 +2987,10 @@ const docTemplate = `{
                     "type": "number",
                     "example": 0.5
                 },
+                "is_public": {
+                    "type": "boolean",
+                    "example": false
+                },
                 "model_name": {
                     "type": "string",
                     "example": "deepseek-v4-pro"
@@ -3146,6 +3162,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
                 },
+                "is_public": {
+                    "type": "boolean",
+                    "example": false
+                },
                 "model_name": {
                     "type": "string",
                     "example": "deepseek-v4-pro"
@@ -3153,6 +3173,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "deepseek-v4-pro"
+                },
+                "owned": {
+                    "type": "boolean",
+                    "example": true
                 },
                 "presence_penalty": {
                     "type": "number",
@@ -3398,6 +3422,9 @@ const docTemplate = `{
                 },
                 "frequency_penalty": {
                     "type": "number"
+                },
+                "is_public": {
+                    "type": "boolean"
                 },
                 "model_name": {
                     "type": "string"

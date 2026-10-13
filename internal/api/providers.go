@@ -16,7 +16,8 @@ import (
 
 // ProviderDTO is the provider representation returned by every provider
 // endpoint. The owner is left out: a provider is only ever visible to the user
-// it belongs to.
+// it belongs to, or to anyone once its owner shares it. `owned` tells the
+// caller whether it may change the row.
 type ProviderDTO struct {
 	ID               uuid.UUID `json:"id" example:"7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	Name             string    `json:"name" example:"deepseek-v4-pro"`
@@ -32,6 +33,8 @@ type ProviderDTO struct {
 	FrequencyPenalty *float64  `json:"frequency_penalty" example:"0.5"`
 	PresencePenalty  *float64  `json:"presence_penalty" example:"0.5"`
 	Combine          bool      `json:"combine" example:"false"`
+	IsPublic         bool      `json:"is_public" example:"false"`
+	Owned            bool      `json:"owned" example:"true"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
@@ -59,6 +62,7 @@ type CreateProviderRequest struct {
 	FrequencyPenalty *float64 `json:"frequency_penalty" example:"0.5"`
 	PresencePenalty  *float64 `json:"presence_penalty" example:"0.5"`
 	Combine          bool     `json:"combine" example:"false"`
+	IsPublic         bool     `json:"is_public" example:"false"`
 }
 
 // UpdateProviderRequest is the body of PUT /api/providers/{uuid}. Every field is
@@ -78,6 +82,7 @@ type UpdateProviderRequest struct {
 	FrequencyPenalty *float64 `json:"frequency_penalty"`
 	PresencePenalty  *float64 `json:"presence_penalty"`
 	Combine          *bool    `json:"combine"`
+	IsPublic         *bool    `json:"is_public"`
 
 	// present holds the keys the body carried. encoding/json decodes an absent
 	// key and an explicit null to the same nil pointer, and the two mean
@@ -117,8 +122,10 @@ func optional[T any](value *T, provided bool) utils.Optional[T] {
 }
 
 // toProviderDTO converts a stored provider into its wire form, nullable columns
-// and all: a NULL column is reported as null, never as 0 or false.
-func toProviderDTO(provider *repository.Provider) ProviderDTO {
+// and all: a NULL column is reported as null, never as 0 or false. `viewerID` is
+// the caller, and decides the derived `owned` flag: only the owner may change a
+// provider, and another user only ever reaches a shared one.
+func toProviderDTO(provider *repository.Provider, viewerID uuid.UUID) ProviderDTO {
 	return ProviderDTO{
 		ID:               provider.ID,
 		Name:             provider.Name,
@@ -134,15 +141,17 @@ func toProviderDTO(provider *repository.Provider) ProviderDTO {
 		FrequencyPenalty: provider.FrequencyPenalty,
 		PresencePenalty:  provider.PresencePenalty,
 		Combine:          provider.Combine,
+		IsPublic:         provider.IsPublic,
+		Owned:            provider.UserID == viewerID,
 		CreatedAt:        provider.CreatedAt,
 		UpdatedAt:        provider.UpdatedAt,
 	}
 }
 
-// ListProviders returns every provider of the caller.
+// ListProviders returns every provider the caller may use.
 //
 //	@Summary		List providers
-//	@Description	Returns all of the caller's providers, lowest priority first. Not paginated: a user has few of them.
+//	@Description	Returns the caller's own providers plus every provider another user shares, lowest priority first. A shared provider carries `is_public` true and `owned` false, and cannot be changed by anyone but its owner. Not paginated: a user has few of them.
 //	@Tags			providers
 //	@Security		BearerAuth
 //	@Produce		json
@@ -165,15 +174,15 @@ func ListProviders(c *gin.Context) {
 
 	items := make([]ProviderDTO, 0, len(providers))
 	for i := range providers {
-		items = append(items, toProviderDTO(&providers[i]))
+		items = append(items, toProviderDTO(&providers[i], actor.ID))
 	}
 	c.JSON(http.StatusOK, items)
 }
 
-// ListProviderModels returns the name and model_name of every provider of the caller.
+// ListProviderModels returns the name and model_name of every provider the caller may use.
 //
 //	@Summary		List provider models
-//	@Description	Returns name and model_name for all of the caller's providers, lowest priority first. The remaining provider fields, credentials included, are left out. Not paginated: a user has few of them.
+//	@Description	Returns name and model_name for the caller's own providers plus the ones other users share, lowest priority first. The remaining provider fields, credentials included, are left out. Not paginated: a user has few of them.
 //	@Tags			providers
 //	@Security		BearerAuth
 //	@Produce		json
@@ -207,7 +216,7 @@ func ListProviderModels(c *gin.Context) {
 // CreateProvider creates a provider.
 //
 //	@Summary		Create a provider
-//	@Description	The provider belongs to the caller. Answers 201 with a Location header pointing at the new provider.
+//	@Description	The provider belongs to the caller. `is_public` shares it with every other user and is reserved to superusers. Answers 201 with a Location header pointing at the new provider.
 //	@Tags			providers
 //	@Security		BearerAuth
 //	@Accept			json
@@ -217,6 +226,7 @@ func ListProviderModels(c *gin.Context) {
 //	@Header			201		{string}	Location	"URL of the created provider"
 //	@Failure		400		{object}	utils.ErrorResponse
 //	@Failure		401		{object}	utils.ErrorResponse
+//	@Failure		403		{object}	utils.ErrorResponse
 //	@Failure		500		{object}	utils.ErrorResponse
 //	@Router			/providers [post]
 func CreateProvider(c *gin.Context) {
@@ -232,7 +242,7 @@ func CreateProvider(c *gin.Context) {
 		return
 	}
 
-	provider, err := service.CreateProvider(c.Request.Context(), actor.ID, service.CreateProviderInput{
+	provider, err := service.CreateProvider(c.Request.Context(), actor.ID, actor.IsSuperuser, service.CreateProviderInput{
 		Name:             request.Name,
 		ModelName:        request.ModelName,
 		APIKey:           request.APIKey,
@@ -246,6 +256,7 @@ func CreateProvider(c *gin.Context) {
 		FrequencyPenalty: request.FrequencyPenalty,
 		PresencePenalty:  request.PresencePenalty,
 		Combine:          request.Combine,
+		IsPublic:         request.IsPublic,
 	})
 	if err != nil {
 		abortError(c, err)
@@ -253,7 +264,7 @@ func CreateProvider(c *gin.Context) {
 	}
 
 	c.Header("Location", "/api/providers/"+provider.ID.String())
-	c.JSON(http.StatusCreated, toProviderDTO(provider))
+	c.JSON(http.StatusCreated, toProviderDTO(provider, actor.ID))
 }
 
 // GetProvider returns one provider.
@@ -286,13 +297,13 @@ func GetProvider(c *gin.Context) {
 		abortError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toProviderDTO(provider))
+	c.JSON(http.StatusOK, toProviderDTO(provider, actor.ID))
 }
 
 // UpdateProvider updates one provider.
 //
 //	@Summary		Update a provider
-//	@Description	A field that is absent keeps its stored value; sending null clears a nullable field. Another user's provider is reported as 404.
+//	@Description	A field that is absent keeps its stored value; sending null clears a nullable field. `is_public` shares the provider with every other user and is reserved to superusers. Another user's provider is reported as 404, so only the owner changes a shared one.
 //	@Tags			providers
 //	@Security		BearerAuth
 //	@Accept			json
@@ -302,6 +313,7 @@ func GetProvider(c *gin.Context) {
 //	@Success		200		{object}	ProviderDTO
 //	@Failure		400		{object}	utils.ErrorResponse
 //	@Failure		401		{object}	utils.ErrorResponse
+//	@Failure		403		{object}	utils.ErrorResponse
 //	@Failure		404		{object}	utils.ErrorResponse
 //	@Failure		500		{object}	utils.ErrorResponse
 //	@Router			/providers/{uuid} [put]
@@ -322,7 +334,7 @@ func UpdateProvider(c *gin.Context) {
 		return
 	}
 
-	provider, err := service.UpdateProvider(c.Request.Context(), actor.ID, id, service.UpdateProviderInput{
+	provider, err := service.UpdateProvider(c.Request.Context(), actor.ID, actor.IsSuperuser, id, service.UpdateProviderInput{
 		Name:             request.Name,
 		ModelName:        request.ModelName,
 		APIKey:           request.APIKey,
@@ -336,12 +348,13 @@ func UpdateProvider(c *gin.Context) {
 		FrequencyPenalty: optional(request.FrequencyPenalty, request.provided("frequency_penalty")),
 		PresencePenalty:  optional(request.PresencePenalty, request.provided("presence_penalty")),
 		Combine:          request.Combine,
+		IsPublic:         request.IsPublic,
 	})
 	if err != nil {
 		abortError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toProviderDTO(provider))
+	c.JSON(http.StatusOK, toProviderDTO(provider, actor.ID))
 }
 
 // DeleteProvider deletes one provider.
@@ -376,9 +389,10 @@ func DeleteProvider(c *gin.Context) {
 }
 
 // ProvidersRouter registers the provider routes. Providers hold credentials, so
-// every route is scoped to the caller and none of them has a superuser path. An
-// access token or an API key is accepted: a provider is what a client needs
-// before it can talk to a model.
+// every route is scoped to the caller and none of them has a superuser path: a
+// shared provider is read through the caller's own list, not by id. An access
+// token or an API key is accepted: a provider is what a client needs before it
+// can talk to a model.
 func ProvidersRouter(r *gin.Engine) {
 	providers := r.Group("/api/providers", authOrAPIKey())
 	providers.GET("", ListProviders)

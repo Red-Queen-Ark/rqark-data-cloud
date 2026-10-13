@@ -37,6 +37,9 @@ type CreateProviderInput struct {
 	FrequencyPenalty *float64
 	PresencePenalty  *float64
 	Combine          bool
+	// IsPublic shares the provider with every other user. Only a superuser may
+	// ask for it.
+	IsPublic bool
 }
 
 // UpdateProviderInput is a partial update. A nil pointer for a NOT NULL column
@@ -56,12 +59,18 @@ type UpdateProviderInput struct {
 	FrequencyPenalty utils.Optional[float64]
 	PresencePenalty  utils.Optional[float64]
 	Combine          *bool
+	// IsPublic clears or sets the share flag. Only a superuser may set it.
+	IsPublic *bool
 }
 
-// CreateProvider validates in and stores a provider owned by userID.
-func CreateProvider(ctx context.Context, userID uuid.UUID, in CreateProviderInput) (*repository.Provider, error) {
+// CreateProvider validates in and stores a provider owned by userID. Sharing
+// the provider (`IsPublic`) is reserved to superusers.
+func CreateProvider(ctx context.Context, userID uuid.UUID, isSuperuser bool, in CreateProviderInput) (*repository.Provider, error) {
 	if err := validateNewProvider(in); err != nil {
 		return nil, err
+	}
+	if in.IsPublic && !isSuperuser {
+		return nil, ErrProviderPublicForbidden
 	}
 
 	provider := &repository.Provider{
@@ -80,6 +89,7 @@ func CreateProvider(ctx context.Context, userID uuid.UUID, in CreateProviderInpu
 		FrequencyPenalty: in.FrequencyPenalty,
 		PresencePenalty:  in.PresencePenalty,
 		Combine:          in.Combine,
+		IsPublic:         in.IsPublic,
 	}
 	if err := repository.CreateProvider(ctx, config.DB, provider); err != nil {
 		return nil, err
@@ -87,8 +97,10 @@ func CreateProvider(ctx context.Context, userID uuid.UUID, in CreateProviderInpu
 	return provider, nil
 }
 
-// UpdateProvider applies in to one of userID's providers.
-func UpdateProvider(ctx context.Context, userID, id uuid.UUID, in UpdateProviderInput) (*repository.Provider, error) {
+// UpdateProvider applies in to one of userID's providers. Setting the share flag
+// is reserved to superusers; a non-superuser owner leaves it untouched or turns
+// it off.
+func UpdateProvider(ctx context.Context, userID uuid.UUID, isSuperuser bool, id uuid.UUID, in UpdateProviderInput) (*repository.Provider, error) {
 	provider, err := repository.GetProviderByID(ctx, config.DB, userID, id)
 	if err != nil {
 		return nil, err
@@ -96,6 +108,9 @@ func UpdateProvider(ctx context.Context, userID, id uuid.UUID, in UpdateProvider
 
 	if err := validateProviderUpdate(in); err != nil {
 		return nil, err
+	}
+	if in.IsPublic != nil && *in.IsPublic && !isSuperuser {
+		return nil, ErrProviderPublicForbidden
 	}
 
 	if in.Name != nil {
@@ -137,6 +152,9 @@ func UpdateProvider(ctx context.Context, userID, id uuid.UUID, in UpdateProvider
 	if in.Combine != nil {
 		provider.Combine = *in.Combine
 	}
+	if in.IsPublic != nil {
+		provider.IsPublic = *in.IsPublic
+	}
 
 	if err := repository.SaveProvider(ctx, config.DB, provider); err != nil {
 		return nil, err
@@ -149,13 +167,14 @@ func DeleteProvider(ctx context.Context, userID, id uuid.UUID) error {
 	return repository.DeleteProvider(ctx, config.DB, userID, id)
 }
 
-// ListProviders returns all of the providers owned by userID.
+// ListProviders returns every provider the caller may use: the ones it owns
+// plus the ones other users share.
 func ListProviders(ctx context.Context, userID uuid.UUID) ([]repository.Provider, error) {
 	return repository.ListProviders(ctx, config.DB, userID)
 }
 
-// ListProviderSummaries returns the name and model_name of all providers owned
-// by userID.
+// ListProviderSummaries returns the name and model_name of every provider
+// userID may use: the ones it owns plus the ones other users share.
 func ListProviderSummaries(ctx context.Context, userID uuid.UUID) ([]repository.ProviderSummary, error) {
 	return repository.ListProviderSummaries(ctx, config.DB, userID)
 }
