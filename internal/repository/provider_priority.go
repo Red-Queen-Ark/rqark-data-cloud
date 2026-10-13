@@ -101,21 +101,6 @@ func UpsertProviderPriority(ctx context.Context, db *gorm.DB, userID, providerID
 	}
 }
 
-// DeleteProviderPriority removes one viewer's override. An override that does
-// not exist is reported as ErrProviderPriorityNotFound.
-func DeleteProviderPriority(ctx context.Context, db *gorm.DB, userID, providerID uuid.UUID) error {
-	result := db.WithContext(ctx).
-		Where("user_id = ?", userID).
-		Delete(&ProviderPriority{}, "provider_id = ?", providerID)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return ErrProviderPriorityNotFound
-	}
-	return nil
-}
-
 // providerPriorityLookupError maps GORM's not-found error onto the repository's
 // own.
 func providerPriorityLookupError(err error) error {

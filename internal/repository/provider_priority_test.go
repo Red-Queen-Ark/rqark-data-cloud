@@ -7,19 +7,19 @@ import (
 )
 
 // TestOrderViewerProvidersSortsByThePriorityThatApplies covers the merge of the
-// owner's priority and the viewer's override: an override replaces the stored
-// value, a provider without one keeps it, and the result is ordered lowest
-// first.
+// stored priorities and the viewer's override: an override replaces the value,
+// a row the viewer owns keeps its own, and the result is ordered lowest first.
 func TestOrderViewerProvidersSortsByThePriorityThatApplies(t *testing.T) {
+	viewer := uuid.MustParse("00000000-0000-0000-0000-0000000000ff")
 	ownerLow := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	ownerHigh := uuid.MustParse("00000000-0000-0000-0000-000000000002")
 	overridden := uuid.MustParse("00000000-0000-0000-0000-000000000003")
 
 	views := orderViewerProviders([]Provider{
-		{ID: ownerHigh, Priority: 50},
-		{ID: ownerLow, Priority: 10},
+		{ID: ownerHigh, UserID: viewer, Priority: 50},
+		{ID: ownerLow, UserID: viewer, Priority: 10},
 		{ID: overridden, Priority: 99},
-	}, map[uuid.UUID]int{overridden: 1})
+	}, map[uuid.UUID]int{overridden: 1}, viewer)
 
 	want := []uuid.UUID{overridden, ownerLow, ownerHigh}
 	if len(views) != len(want) {
@@ -37,21 +37,50 @@ func TestOrderViewerProvidersSortsByThePriorityThatApplies(t *testing.T) {
 	if views[1].OverridePriority != nil {
 		t.Errorf("a provider with no override carries %v, want nil", views[1].OverridePriority)
 	}
-	if views[0].EffectivePriority() != 1 || views[1].EffectivePriority() != 10 {
-		t.Errorf("effective priorities = %d, %d, want 1, 10", views[0].EffectivePriority(), views[1].EffectivePriority())
+	if views[0].EffectivePriority(viewer) != 1 || views[1].EffectivePriority(viewer) != 10 {
+		t.Errorf("effective priorities = %d, %d, want 1, 10",
+			views[0].EffectivePriority(viewer), views[1].EffectivePriority(viewer))
+	}
+}
+
+// TestSharedProviderWithoutAnOverrideDoesNotBorrowTheOwnersPriority covers the
+// shared row the viewer never ordered: it sorts on UnsetProviderPriority rather
+// than on the owner's stored number, so the owner editing that number cannot
+// reorder somebody else's list.
+func TestSharedProviderWithoutAnOverrideDoesNotBorrowTheOwnersPriority(t *testing.T) {
+	viewer := uuid.MustParse("00000000-0000-0000-0000-0000000000ff")
+	owner := uuid.MustParse("00000000-0000-0000-0000-0000000000aa")
+	own := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	shared := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+
+	views := orderViewerProviders([]Provider{
+		{ID: own, UserID: viewer, Priority: 10},
+		// The owner ranks it first, which says nothing about the viewer's list.
+		{ID: shared, UserID: owner, Priority: 1},
+	}, nil, viewer)
+
+	if len(views) != 2 || views[0].ID != shared {
+		t.Fatalf("order = %v, want [%s %s]", viewerIDs(views), shared, own)
+	}
+	if got := views[0].EffectivePriority(viewer); got != UnsetProviderPriority {
+		t.Errorf("effective priority of the shared row = %d, want %d", got, UnsetProviderPriority)
+	}
+	if got := views[1].EffectivePriority(viewer); got != 10 {
+		t.Errorf("effective priority of the owned row = %d, want 10", got)
 	}
 }
 
 // TestOrderViewerProvidersBreaksTiesOnID covers the tie: two providers with the
 // same effective priority come out in id order, so the listing is stable.
 func TestOrderViewerProvidersBreaksTiesOnID(t *testing.T) {
+	viewer := uuid.MustParse("00000000-0000-0000-0000-0000000000ff")
 	first := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	second := uuid.MustParse("00000000-0000-0000-0000-000000000002")
 
 	views := orderViewerProviders([]Provider{
-		{ID: second, Priority: 5},
-		{ID: first, Priority: 5},
-	}, nil)
+		{ID: second, UserID: viewer, Priority: 5},
+		{ID: first, UserID: viewer, Priority: 5},
+	}, nil, viewer)
 
 	if len(views) != 2 || views[0].ID != first || views[1].ID != second {
 		t.Errorf("order = %v, want [%s %s]", viewerIDs(views), first, second)

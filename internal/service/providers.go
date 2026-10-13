@@ -223,19 +223,6 @@ func SetProviderPriority(ctx context.Context, userID, id uuid.UUID, priority int
 	return &repository.ViewerProvider{Provider: *provider, OverridePriority: &override.Priority}, nil
 }
 
-// DeleteProviderPriority drops the caller's override for a shared provider, so
-// the owner's priority applies again.
-func DeleteProviderPriority(ctx context.Context, userID, id uuid.UUID) error {
-	provider, err := repository.GetVisibleProviderByID(ctx, config.DB, userID, id)
-	if err != nil {
-		return err
-	}
-	if provider.UserID == userID {
-		return &ValidationError{Message: "This provider is yours: it carries no priority override to clear."}
-	}
-	return repository.DeleteProviderPriority(ctx, config.DB, userID, id)
-}
-
 // validateNewProvider checks every field of a create body. Priority and the
 // three connection fields have no default, so they are required.
 func validateNewProvider(in CreateProviderInput) error {

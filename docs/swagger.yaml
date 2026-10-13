@@ -256,8 +256,8 @@ definitions:
       priority_override:
         description: |-
           PriorityOverride is the caller's own priority for a shared provider, or
-          null when the caller follows the owner's priority. It is always null on a
-          provider the caller owns: that priority is edited through the provider.
+          null when the caller never ordered it. It is always null on a provider the
+          caller owns: that priority is edited through the provider.
         example: 1
         type: integer
       reasoning_effort:
@@ -1529,11 +1529,11 @@ paths:
   /providers:
     get:
       description: 'Returns the caller''s own providers plus every provider another
-        user shares, ordered by the priority that applies to the caller. That is the
-        caller''s own `priority_override` on a shared provider when one is set, the
-        owner''s `priority` otherwise. A shared provider carries `is_public` true
-        and `owned` false, and only its owner changes its fields. Not paginated: a
-        user has few of them.'
+        user shares, ordered by the priority that applies to the caller: its own `priority_override`
+        on a shared provider when one is set, the provider''s own `priority` when
+        the caller owns it, and `-99` on a shared provider the caller never ordered.
+        A shared provider carries `is_public` true and `owned` false, and only its
+        owner changes its fields. Not paginated: a user has few of them.'
       produces:
       - application/json
       responses:
@@ -1728,42 +1728,6 @@ paths:
       tags:
       - providers
   /providers/{uuid}/priority:
-    delete:
-      description: Drops the caller's priority override for a provider another user
-        shared, so the owner's priority applies again. A provider the caller owns
-        is reported as 400, a provider the caller may not use as 404, and a shared
-        provider the caller never overrode as 404.
-      parameters:
-      - description: Provider ID
-        format: uuid
-        in: path
-        name: uuid
-        required: true
-        type: string
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/utils.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/utils.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/utils.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/utils.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Clear a provider priority override
-      tags:
-      - providers
     put:
       consumes:
       - application/json

@@ -113,12 +113,15 @@ func TestProviderPriorityReordersOnlyItsOwner(t *testing.T) {
 	own := newTestProvider(t, db, viewer, 20, false)
 	shared := newTestProvider(t, db, owner, 50, true)
 
-	wantIDs(t, listedIDs(t, viewer), []uuid.UUID{own.ID, shared.ID})
+	// The shared row carries no override of the viewer's, so its owner's 50 says
+	// nothing here: it sorts unset, ahead of the viewer's own row.
+	wantIDs(t, listedIDs(t, viewer), []uuid.UUID{shared.ID, own.ID})
 
-	if _, err := SetProviderPriority(context.Background(), viewer.ID, shared.ID, 5); err != nil {
+	// Ranking it behind the viewer's own row moves only the viewer's list.
+	if _, err := SetProviderPriority(context.Background(), viewer.ID, shared.ID, 30); err != nil {
 		t.Fatalf("SetProviderPriority: %v", err)
 	}
-	wantIDs(t, listedIDs(t, viewer), []uuid.UUID{shared.ID, own.ID})
+	wantIDs(t, listedIDs(t, viewer), []uuid.UUID{own.ID, shared.ID})
 
 	stored, err := repository.GetProviderByID(context.Background(), db, owner.ID, shared.ID)
 	if err != nil {
@@ -141,8 +144,8 @@ func TestProviderPriorityReportsTheEffectiveValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetProvider: %v", err)
 	}
-	if view.EffectivePriority() != 50 {
-		t.Errorf("effective priority = %d, want the owner's 50", view.EffectivePriority())
+	if view.EffectivePriority(viewer.ID) != repository.UnsetProviderPriority {
+		t.Errorf("effective priority = %d, want the unset %d", view.EffectivePriority(viewer.ID), repository.UnsetProviderPriority)
 	}
 	if view.OverridePriority != nil {
 		t.Errorf("override = %v, want nil before one is set", view.OverridePriority)
@@ -152,8 +155,8 @@ func TestProviderPriorityReportsTheEffectiveValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SetProviderPriority: %v", err)
 	}
-	if view.EffectivePriority() != 7 {
-		t.Errorf("effective priority = %d, want 7", view.EffectivePriority())
+	if view.EffectivePriority(viewer.ID) != 7 {
+		t.Errorf("effective priority = %d, want 7", view.EffectivePriority(viewer.ID))
 	}
 	if view.OverridePriority == nil || *view.OverridePriority != 7 {
 		t.Errorf("override = %v, want 7", view.OverridePriority)
@@ -163,9 +166,9 @@ func TestProviderPriorityReportsTheEffectiveValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetProvider of the owner: %v", err)
 	}
-	if ownerView.EffectivePriority() != 50 || ownerView.OverridePriority != nil {
+	if ownerView.EffectivePriority(owner.ID) != 50 || ownerView.OverridePriority != nil {
 		t.Errorf("the owner sees priority %d override %v, want 50 and nil",
-			ownerView.EffectivePriority(), ownerView.OverridePriority)
+			ownerView.EffectivePriority(owner.ID), ownerView.OverridePriority)
 	}
 }
 
@@ -180,9 +183,6 @@ func TestProviderPriorityRefusesAProviderTheViewerOwns(t *testing.T) {
 	if _, err := SetProviderPriority(context.Background(), owner.ID, mine.ID, 3); !errors.As(err, &validation) {
 		t.Errorf("SetProviderPriority on an owned provider = %v, want a ValidationError", err)
 	}
-	if err := DeleteProviderPriority(context.Background(), owner.ID, mine.ID); !errors.As(err, &validation) {
-		t.Errorf("DeleteProviderPriority on an owned provider = %v, want a ValidationError", err)
-	}
 }
 
 // TestProviderPriorityHidesAProviderTheViewerCannotUse covers the 404: an id the
@@ -195,33 +195,6 @@ func TestProviderPriorityHidesAProviderTheViewerCannotUse(t *testing.T) {
 
 	if _, err := SetProviderPriority(context.Background(), viewer.ID, private.ID, 1); !errors.Is(err, repository.ErrProviderNotFound) {
 		t.Errorf("SetProviderPriority on an invisible provider = %v, want %v", err, repository.ErrProviderNotFound)
-	}
-	if err := DeleteProviderPriority(context.Background(), viewer.ID, private.ID); !errors.Is(err, repository.ErrProviderNotFound) {
-		t.Errorf("DeleteProviderPriority on an invisible provider = %v, want %v", err, repository.ErrProviderNotFound)
-	}
-}
-
-// TestDeleteProviderPriorityFallsBackToTheOwner covers clearing the override:
-// the ordering goes back to what the owner set.
-func TestDeleteProviderPriorityFallsBackToTheOwner(t *testing.T) {
-	db := providerTestDB(t)
-	owner := testProviderUser(t, db)
-	viewer := testProviderUser(t, db)
-	own := newTestProvider(t, db, viewer, 20, false)
-	shared := newTestProvider(t, db, owner, 50, true)
-
-	if _, err := SetProviderPriority(context.Background(), viewer.ID, shared.ID, 5); err != nil {
-		t.Fatalf("SetProviderPriority: %v", err)
-	}
-	wantIDs(t, listedIDs(t, viewer), []uuid.UUID{shared.ID, own.ID})
-
-	if err := DeleteProviderPriority(context.Background(), viewer.ID, shared.ID); err != nil {
-		t.Fatalf("DeleteProviderPriority: %v", err)
-	}
-	wantIDs(t, listedIDs(t, viewer), []uuid.UUID{own.ID, shared.ID})
-
-	if err := DeleteProviderPriority(context.Background(), viewer.ID, shared.ID); !errors.Is(err, repository.ErrProviderPriorityNotFound) {
-		t.Errorf("second DeleteProviderPriority = %v, want %v", err, repository.ErrProviderPriorityNotFound)
 	}
 }
 
@@ -261,7 +234,7 @@ func TestUnsharingAProviderHidesItAndKeepsTheOverride(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetProvider after the share came back: %v", err)
 	}
-	if view.EffectivePriority() != 5 {
-		t.Errorf("effective priority = %d, want the override 5 back", view.EffectivePriority())
+	if view.EffectivePriority(viewer.ID) != 5 {
+		t.Errorf("effective priority = %d, want the override 5 back", view.EffectivePriority(viewer.ID))
 	}
 }

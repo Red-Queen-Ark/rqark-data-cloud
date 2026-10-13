@@ -19,7 +19,8 @@ import (
 // it belongs to, or to anyone once its owner shares it. `owned` tells the
 // caller whether it may change the row, and `priority` is the value that
 // applies to the caller: its own `priority_override` when it set one, the
-// owner's priority otherwise.
+// provider's own priority when the caller owns it, and -99 on a shared
+// provider the caller never ordered.
 type ProviderDTO struct {
 	ID               uuid.UUID `json:"id" example:"7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	Name             string    `json:"name" example:"deepseek-v4-pro"`
@@ -38,8 +39,8 @@ type ProviderDTO struct {
 	IsPublic         bool      `json:"is_public" example:"false"`
 	Owned            bool      `json:"owned" example:"true"`
 	// PriorityOverride is the caller's own priority for a shared provider, or
-	// null when the caller follows the owner's priority. It is always null on a
-	// provider the caller owns: that priority is edited through the provider.
+	// null when the caller never ordered it. It is always null on a provider the
+	// caller owns: that priority is edited through the provider.
 	PriorityOverride *int      `json:"priority_override" example:"1"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
@@ -148,7 +149,7 @@ func toProviderDTO(view *repository.ViewerProvider, viewerID uuid.UUID) Provider
 		ModelName:        provider.ModelName,
 		APIKey:           provider.APIKey,
 		APIBase:          provider.APIBase,
-		Priority:         view.EffectivePriority(),
+		Priority:         view.EffectivePriority(viewerID),
 		ReasoningEffort:  provider.ReasoningEffort,
 		Thinking:         provider.Thinking,
 		Temperature:      provider.Temperature,
@@ -174,7 +175,7 @@ func ownedView(provider *repository.Provider) *repository.ViewerProvider {
 // ListProviders returns every provider the caller may use.
 //
 //	@Summary		List providers
-//	@Description	Returns the caller's own providers plus every provider another user shares, ordered by the priority that applies to the caller. That is the caller's own `priority_override` on a shared provider when one is set, the owner's `priority` otherwise. A shared provider carries `is_public` true and `owned` false, and only its owner changes its fields. Not paginated: a user has few of them.
+//	@Description	Returns the caller's own providers plus every provider another user shares, ordered by the priority that applies to the caller: its own `priority_override` on a shared provider when one is set, the provider's own `priority` when the caller owns it, and `-99` on a shared provider the caller never ordered. A shared provider carries `is_public` true and `owned` false, and only its owner changes its fields. Not paginated: a user has few of them.
 //	@Tags			providers
 //	@Security		BearerAuth
 //	@Produce		json
@@ -456,38 +457,6 @@ func SetProviderPriority(c *gin.Context) {
 	c.JSON(http.StatusOK, toProviderDTO(view, actor.ID))
 }
 
-// DeleteProviderPriority clears the caller's priority override for a shared
-// provider.
-//
-//	@Summary		Clear a provider priority override
-//	@Description	Drops the caller's priority override for a provider another user shared, so the owner's priority applies again. A provider the caller owns is reported as 400, a provider the caller may not use as 404, and a shared provider the caller never overrode as 404.
-//	@Tags			providers
-//	@Security		BearerAuth
-//	@Param			uuid	path	string	true	"Provider ID"	format(uuid)
-//	@Success		204
-//	@Failure		400	{object}	utils.ErrorResponse
-//	@Failure		401	{object}	utils.ErrorResponse
-//	@Failure		404	{object}	utils.ErrorResponse
-//	@Failure		500	{object}	utils.ErrorResponse
-//	@Router			/providers/{uuid}/priority [delete]
-func DeleteProviderPriority(c *gin.Context) {
-	actor, ok := middlewares.CurrentUser(c)
-	if !ok {
-		utils.Abort(c, utils.Unauthorized, "Authentication credentials were not provided.")
-		return
-	}
-	id, ok := parseUUIDParam(c, "uuid")
-	if !ok {
-		return
-	}
-
-	if err := service.DeleteProviderPriority(c.Request.Context(), actor.ID, id); err != nil {
-		abortError(c, err)
-		return
-	}
-	c.Status(http.StatusNoContent)
-}
-
 // ProvidersRouter registers the provider routes. Providers hold credentials, so
 // none of them has a superuser path: the ones that change a provider are scoped
 // to its owner, and a shared provider is reached through the caller's own list
@@ -504,5 +473,4 @@ func ProvidersRouter(r *gin.Engine) {
 	providers.PUT("/:uuid", UpdateProvider)
 	providers.DELETE("/:uuid", DeleteProvider)
 	providers.PUT("/:uuid/priority", SetProviderPriority)
-	providers.DELETE("/:uuid/priority", DeleteProviderPriority)
 }
