@@ -33,6 +33,9 @@ type Provider struct {
 	FrequencyPenalty *float64  `gorm:"type:double precision"`
 	PresencePenalty  *float64  `gorm:"type:double precision"`
 	Combine          bool      `gorm:"not null;default:false"`
+	// IsPublic marks a provider its owner shares with every other user. Only a
+	// superuser may set it, and only the owner may change the row afterwards.
+	IsPublic bool `gorm:"not null;default:false;index"`
 
 	// User only exists to tie user_id to users.id with a foreign key. It is
 	// never loaded or written through this struct.
@@ -65,12 +68,13 @@ func SaveProvider(ctx context.Context, db *gorm.DB, provider *Provider) error {
 	return db.WithContext(ctx).Save(provider).Error
 }
 
-// ListProviders returns all of userID's providers, lowest priority first, which
-// is the order the app tries them in.
+// ListProviders returns every provider userID may use: the ones it owns plus
+// the public providers other users share, lowest priority first, which is the
+// order the app tries them in.
 func ListProviders(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]Provider, error) {
 	var providers []Provider
 	err := db.WithContext(ctx).
-		Where("user_id = ?", userID).
+		Where("user_id = ? OR is_public = ?", userID, true).
 		Order("priority").Order("id").
 		Find(&providers).Error
 	if err != nil {
@@ -86,14 +90,15 @@ type ProviderSummary struct {
 	ModelName string
 }
 
-// ListProviderSummaries returns the name and model_name of every provider of
-// userID, lowest priority first, which is the order the app tries them in.
+// ListProviderSummaries returns the name and model_name of every provider
+// userID may use: the ones it owns plus the public providers other users share,
+// lowest priority first, which is the order the app tries them in.
 func ListProviderSummaries(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]ProviderSummary, error) {
 	summaries := []ProviderSummary{}
 	err := db.WithContext(ctx).
 		Model(&Provider{}).
 		Select("name", "model_name").
-		Where("user_id = ?", userID).
+		Where("user_id = ? OR is_public = ?", userID, true).
 		Order("priority").Order("id").
 		Find(&summaries).Error
 	if err != nil {
