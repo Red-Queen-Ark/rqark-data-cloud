@@ -1344,7 +1344,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns the caller's own providers plus every provider another user shares, lowest priority first. A shared provider carries `is_public` true and `owned` false, and cannot be changed by anyone but its owner. Not paginated: a user has few of them.",
+                "description": "Returns the caller's own providers plus every provider another user shares, ordered by the priority that applies to the caller: its own `priority_override` on a shared provider when one is set, the provider's own `priority` when the caller owns it, and `-99` on a shared provider the caller never ordered. A shared provider carries `is_public` true and `owned` false, and only its owner changes its fields. Not paginated: a user has few of them.",
                 "produces": [
                     "application/json"
                 ],
@@ -1451,7 +1451,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns name and model_name for the caller's own providers plus the ones other users share, lowest priority first. The remaining provider fields, credentials included, are left out. Not paginated: a user has few of them.",
+                "description": "Returns name and model_name for the caller's own providers plus the ones other users share, in the same order as GET /api/providers. The remaining provider fields, credentials included, are left out. Not paginated: a user has few of them.",
                 "produces": [
                     "application/json"
                 ],
@@ -1491,7 +1491,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns one of the caller's providers, api_key included. Another user's provider is reported as 404.",
+                "description": "Returns a provider the caller may use: one it owns, or one another user shares. api_key is included, since the client needs it to reach the model. A provider the caller may not use is reported as 404.",
                 "produces": [
                     "application/json"
                 ],
@@ -1641,6 +1641,77 @@
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/providers/{uuid}/priority": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sets the priority the caller uses to order a provider another user shared. The provider's own fields, credentials included, stay with its owner; only the caller's ordering changes, and every other user is left alone. A provider the caller owns is reported as 400 (its priority is its own field), a provider the caller may not use as 404.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Set a provider priority override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Provider ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Priority override",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.SetProviderPriorityRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ProviderDTO"
+                        }
                     },
                     "400": {
                         "description": "Bad Request",
@@ -3180,6 +3251,11 @@
                     "type": "integer",
                     "example": 1
                 },
+                "priority_override": {
+                    "description": "PriorityOverride is the caller's own priority for a shared provider, or\nnull when the caller never ordered it. It is always null on a provider the\ncaller owns: that priority is edited through the provider.",
+                    "type": "integer",
+                    "example": 1
+                },
                 "reasoning_effort": {
                     "type": "string",
                     "example": "high"
@@ -3324,6 +3400,15 @@
                 "new_password": {
                     "type": "string",
                     "example": "staple-correct-battery"
+                }
+            }
+        },
+        "api.SetProviderPriorityRequest": {
+            "type": "object",
+            "properties": {
+                "priority": {
+                    "type": "integer",
+                    "example": 1
                 }
             }
         },
