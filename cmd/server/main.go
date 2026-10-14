@@ -43,6 +43,8 @@ import (
 // @tag.description			API keys owned by the authenticated user.
 // @tag.name					user-config
 // @tag.description			Per-user settings owned by the authenticated user.
+// @tag.name					agent-defaults
+// @tag.description			Default agent per session source owned by the authenticated user.
 
 // @securityDefinitions.apikey	BearerAuth
 // @in							header
@@ -50,7 +52,7 @@ import (
 // @description				Bearer <access_token>
 func main() {
 	config.InitDatabase()
-	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}, &repository.Agent{}, &repository.Provider{}, &repository.Session{}, &repository.SessionMessage{}, &repository.APIKey{}, &repository.UserConfig{}, &repository.ProviderPriority{}); err != nil {
+	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}, &repository.Agent{}, &repository.Provider{}, &repository.Session{}, &repository.SessionMessage{}, &repository.APIKey{}, &repository.UserConfig{}, &repository.ProviderPriority{}, &repository.AgentDefault{}); err != nil {
 		log.Fatalf("main: automigrate: %v", err)
 	}
 	config.InitRedis()

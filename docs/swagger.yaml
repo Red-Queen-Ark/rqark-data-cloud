@@ -58,6 +58,22 @@ definitions:
       updated_at:
         type: string
     type: object
+  api.AgentDefaultDTO:
+    properties:
+      agent_id:
+        example: 5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      created_at:
+        type: string
+      id:
+        example: 3f9a1c7e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      source:
+        example: TUI
+        type: string
+      updated_at:
+        type: string
+    type: object
   api.ChangePasswordRequest:
     properties:
       new_password:
@@ -285,6 +301,12 @@ definitions:
         type: string
       name:
         example: primary
+        type: string
+    type: object
+  api.PutAgentDefaultRequest:
+    properties:
+      agent_id:
+        example: 5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
         type: string
     type: object
   api.PutUserConfigRequest:
@@ -641,6 +663,153 @@ info:
   title: rqark-data-cloud
   version: "1.0"
 paths:
+  /agent-defaults:
+    get:
+      description: 'Returns all of the caller''s default agents, ordered by source.
+        Not paginated: a user names one source per client it runs and the app wants
+        the whole set at once.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.AgentDefaultDTO'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List agent defaults
+      tags:
+      - agent-defaults
+  /agent-defaults/{source}:
+    delete:
+      description: Hard delete of the caller's default agent for one source. A source
+        that has no default is reported as 404.
+      parameters:
+      - description: Session source
+        example: TUI
+        in: path
+        name: source
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a default agent
+      tags:
+      - agent-defaults
+    get:
+      description: Returns the caller's default agent for one source. A source that
+        holds no default is reported as 404.
+      parameters:
+      - description: Session source
+        example: TUI
+        in: path
+        name: source
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.AgentDefaultDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a default agent
+      tags:
+      - agent-defaults
+    put:
+      consumes:
+      - application/json
+      description: 'Upserts the caller''s default agent for one source: the agent
+        of an existing source is overwritten, a source that does not exist is created.
+        The agent has to belong to the caller.'
+      parameters:
+      - description: Session source
+        example: TUI
+        in: path
+        name: source
+        required: true
+        type: string
+      - description: Default agent to set
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.PutAgentDefaultRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.AgentDefaultDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Set a default agent
+      tags:
+      - agent-defaults
   /agents:
     get:
       description: 'Returns all of the caller''s agents, ordered by name. Not paginated:
@@ -2605,3 +2774,5 @@ tags:
   name: api-keys
 - description: Per-user settings owned by the authenticated user.
   name: user-config
+- description: Default agent per session source owned by the authenticated user.
+  name: agent-defaults

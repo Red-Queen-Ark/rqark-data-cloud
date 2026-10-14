@@ -15,6 +15,225 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/agent-defaults": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all of the caller's default agents, ordered by source. Not paginated: a user names one source per client it runs and the app wants the whole set at once.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agent-defaults"
+                ],
+                "summary": "List agent defaults",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.AgentDefaultDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent-defaults/{source}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the caller's default agent for one source. A source that holds no default is reported as 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agent-defaults"
+                ],
+                "summary": "Get a default agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "TUI",
+                        "description": "Session source",
+                        "name": "source",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.AgentDefaultDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Upserts the caller's default agent for one source: the agent of an existing source is overwritten, a source that does not exist is created. The agent has to belong to the caller.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agent-defaults"
+                ],
+                "summary": "Set a default agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "TUI",
+                        "description": "Session source",
+                        "name": "source",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Default agent to set",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.PutAgentDefaultRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.AgentDefaultDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Hard delete of the caller's default agent for one source. A source that has no default is reported as 404.",
+                "tags": [
+                    "agent-defaults"
+                ],
+                "summary": "Delete a default agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "TUI",
+                        "description": "Session source",
+                        "name": "source",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/agents": {
             "get": {
                 "security": [
@@ -2981,6 +3200,29 @@ const docTemplate = `{
                 }
             }
         },
+        "api.AgentDefaultDTO": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "3f9a1c7e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "source": {
+                    "type": "string",
+                    "example": "TUI"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "api.ChangePasswordRequest": {
             "type": "object",
             "properties": {
@@ -3297,6 +3539,15 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "primary"
+                }
+            }
+        },
+        "api.PutAgentDefaultRequest": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
                 }
             }
         },
@@ -3863,6 +4114,10 @@ const docTemplate = `{
         {
             "description": "Per-user settings owned by the authenticated user.",
             "name": "user-config"
+        },
+        {
+            "description": "Default agent per session source owned by the authenticated user.",
+            "name": "agent-defaults"
         }
     ]
 }`
