@@ -28,6 +28,7 @@ func APIRouter(r *gin.Engine) {
 	SessionsRouter(r)
 	APIKeysRouter(r)
 	UserConfigsRouter(r)
+	AgentDefaultsRouter(r)
 }
 
 // LoadUser loads the user an access token names. It is the database hook the
@@ -118,6 +119,8 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.NotFound, "API key not found.")
 	case errors.Is(err, repository.ErrUserConfigNotFound):
 		utils.Abort(c, utils.NotFound, "User config not found.")
+	case errors.Is(err, repository.ErrAgentDefaultNotFound):
+		utils.Abort(c, utils.NotFound, "Agent default not found.")
 	case errors.Is(err, service.ErrAPIKeyRevoked):
 		utils.Abort(c, utils.Conflict, "This API key was deleted and cannot be brought back.")
 	case errors.Is(err, service.ErrAPIKeyLapsed):
