@@ -26,6 +26,7 @@ Unique index `(user_id, source)` —— 每個用戶每個 `source` 最多一個
 | Method | Path | Request body | 說明 |
 |---|---|---|---|
 | GET | `/api/agent-defaults` | — | 回當前用戶全部默認 agent，array（唔分頁），`source` 升序 |
+| GET | `/api/agent-defaults/{source}` | — | 取得一個 `source` 嘅默認 agent；冇設過回 `404` |
 | PUT | `/api/agent-defaults/{source}` | `{ "agent_id": uuid }` | 新增或覆寫一個 `source` 嘅默認 agent（upsert），回 `200` |
 | DELETE | `/api/agent-defaults/{source}` | — | 刪一個 `source` 嘅默認，回 `204` |
 
@@ -52,9 +53,7 @@ GET 回應：
 ]
 ```
 
-PUT 回單一 object（同 array 內嘅元素一樣），唔係 array。
-
-冇 `GET /api/agent-defaults/{source}`：`GET /api/agent-defaults` 已經回晒全部，單一 source 冇細節頁（同 `user_config.md`）。
+PUT 回單一 object（同 array 內嘅元素一樣），唔係 array。`GET /api/agent-defaults/{source}` 回同一個 object。
 
 ## 規則
 
@@ -63,7 +62,7 @@ PUT 回單一 object（同 array 內嘅元素一樣），唔係 array。
 - **`agent_id` 必填** —— 一定要係呼叫者自己嘅 agent。指去其他用戶嘅 agent（或者唔存在嘅 agent）一律回 `404`，唔回 `403`，避免枚舉 id（同其他 resource 一致）。
 - **`created_at` / `updated_at` 由 server 管** —— request 帶咗都忽略。
 - **唔分頁** —— 回 array（同 `/api/agents`、`/api/providers`、`/api/sessions`、`/api/user-config` 一致）：呢啲係用戶自己嘅默認設定，一次過攞齊先夠做本地覆寫。
-- **跨用戶** —— 所有 query 都帶 `user_id = <token 用戶>`；`DELETE` 一個唔存在嘅 `source` 回 `404`。
+- **跨用戶** —— 所有 query 都帶 `user_id = <token 用戶>`；`GET` / `DELETE` 一個冇設過默認嘅 `source` 回 `404`。
 - 回應唔含 `user_id`，同其他 resource doc 一致。
 
 ## 錯誤格式
@@ -77,5 +76,5 @@ PUT 回單一 object（同 array 內嘅元素一樣），唔係 array。
 | 缺 token / token 或 API key 無效 | 401 | `UNAUTHORIZED` |
 | `source` 唔合法 / `agent_id` 唔係 UUID / body 唔係合法 JSON | 400 | `BAD_REQUEST` |
 | `agent_id` 唔屬於呼叫者 | 404 | `NOT_FOUND` |
-| `DELETE` 一個唔存在嘅 `source` | 404 | `NOT_FOUND` |
+| `GET` / `DELETE` 一個冇設過默認嘅 `source` | 404 | `NOT_FOUND` |
 | 其他內部錯誤 | 500 | `INTERNAL` |

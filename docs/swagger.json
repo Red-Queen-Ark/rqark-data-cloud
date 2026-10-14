@@ -50,6 +50,63 @@
             }
         },
         "/agent-defaults/{source}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the caller's default agent for one source. A source that holds no default is reported as 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agent-defaults"
+                ],
+                "summary": "Get a default agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "TUI",
+                        "description": "Session source",
+                        "name": "source",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.AgentDefaultDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
             "put": {
                 "security": [
                     {

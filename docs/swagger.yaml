@@ -725,6 +725,44 @@ paths:
       summary: Delete a default agent
       tags:
       - agent-defaults
+    get:
+      description: Returns the caller's default agent for one source. A source that
+        holds no default is reported as 404.
+      parameters:
+      - description: Session source
+        example: TUI
+        in: path
+        name: source
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.AgentDefaultDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a default agent
+      tags:
+      - agent-defaults
     put:
       consumes:
       - application/json

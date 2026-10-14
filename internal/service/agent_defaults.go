@@ -25,6 +25,15 @@ func ListAgentDefaults(ctx context.Context, userID uuid.UUID) ([]repository.Agen
 	return repository.ListAgentDefaults(ctx, config.DB, userID)
 }
 
+// GetAgentDefault returns the default agent userID uses on source. A source that
+// holds no default is reported as ErrAgentDefaultNotFound.
+func GetAgentDefault(ctx context.Context, userID uuid.UUID, source string) (*repository.AgentDefault, error) {
+	if err := validateAgentDefaultSource(source); err != nil {
+		return nil, err
+	}
+	return repository.GetAgentDefault(ctx, config.DB, userID, source)
+}
+
 // SetAgentDefault upserts the default agent userID uses on source. The agent has
 // to belong to the same user, so a default can never point at another account's
 // agent.

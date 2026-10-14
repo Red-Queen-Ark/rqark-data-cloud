@@ -132,6 +132,53 @@ func TestAgentDefaultHidesADefaultTheUserDoesNotHave(t *testing.T) {
 	}
 }
 
+// TestAgentDefaultReadsBackBySource covers the single read: a source that holds
+// a default answers with it, and a source that holds none is reported as not
+// found rather than as an empty default.
+func TestAgentDefaultReadsBackBySource(t *testing.T) {
+	db := agentDefaultTestDB(t)
+	user := testAgentDefaultUser(t, db)
+	agent := newTestAgent(t, db, user)
+
+	if _, err := SetAgentDefault(context.Background(), user.ID, "TUI", agent.ID); err != nil {
+		t.Fatalf("SetAgentDefault: %v", err)
+	}
+
+	stored, err := GetAgentDefault(context.Background(), user.ID, "TUI")
+	if err != nil {
+		t.Fatalf("GetAgentDefault: %v", err)
+	}
+	if stored.AgentID != agent.ID || stored.Source != "TUI" {
+		t.Errorf("default = source %s agent %s, want TUI and %s", stored.Source, stored.AgentID, agent.ID)
+	}
+
+	if _, err := GetAgentDefault(context.Background(), user.ID, "AGENT_CLOUD"); !errors.Is(err, repository.ErrAgentDefaultNotFound) {
+		t.Errorf("GetAgentDefault for an unset source = %v, want %v", err, repository.ErrAgentDefaultNotFound)
+	}
+
+	var validation *ValidationError
+	if _, err := GetAgentDefault(context.Background(), user.ID, "my app"); !errors.As(err, &validation) {
+		t.Errorf("GetAgentDefault with an invalid source = %v, want a ValidationError", err)
+	}
+}
+
+// TestAgentDefaultHidesAnotherUsersDefault covers the boundary: the lookup is
+// scoped to the caller, so one user's source reads nothing of another's.
+func TestAgentDefaultHidesAnotherUsersDefault(t *testing.T) {
+	db := agentDefaultTestDB(t)
+	owner := testAgentDefaultUser(t, db)
+	viewer := testAgentDefaultUser(t, db)
+	agent := newTestAgent(t, db, owner)
+
+	if _, err := SetAgentDefault(context.Background(), owner.ID, "TUI", agent.ID); err != nil {
+		t.Fatalf("SetAgentDefault: %v", err)
+	}
+
+	if _, err := GetAgentDefault(context.Background(), viewer.ID, "TUI"); !errors.Is(err, repository.ErrAgentDefaultNotFound) {
+		t.Errorf("GetAgentDefault on another user's source = %v, want %v", err, repository.ErrAgentDefaultNotFound)
+	}
+}
+
 // TestValidateAgentDefaultSource covers the path segment grammar: a source has
 // to be present, fit its column and stay URL-safe.
 func TestValidateAgentDefaultSource(t *testing.T) {

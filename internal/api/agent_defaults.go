@@ -72,6 +72,35 @@ func ListAgentDefaults(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
+// GetAgentDefault returns the caller's default agent for a source.
+//
+//	@Summary		Get a default agent
+//	@Description	Returns the caller's default agent for one source. A source that holds no default is reported as 404.
+//	@Tags			agent-defaults
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			source	path		string	true	"Session source"	example(TUI)
+//	@Success		200		{object}	AgentDefaultDTO
+//	@Failure		400		{object}	utils.ErrorResponse
+//	@Failure		401		{object}	utils.ErrorResponse
+//	@Failure		404		{object}	utils.ErrorResponse
+//	@Failure		500		{object}	utils.ErrorResponse
+//	@Router			/agent-defaults/{source} [get]
+func GetAgentDefault(c *gin.Context) {
+	actor, ok := middlewares.CurrentUser(c)
+	if !ok {
+		utils.Abort(c, utils.Unauthorized, "Authentication credentials were not provided.")
+		return
+	}
+
+	default_, err := service.GetAgentDefault(c.Request.Context(), actor.ID, c.Param("source"))
+	if err != nil {
+		abortError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, toAgentDefaultDTO(default_))
+}
+
 // PutAgentDefault creates or overwrites the caller's default agent for a source.
 //
 //	@Summary		Set a default agent
@@ -144,6 +173,7 @@ func DeleteAgentDefault(c *gin.Context) {
 func AgentDefaultsRouter(r *gin.Engine) {
 	defaults := r.Group("/api/agent-defaults", authOrAPIKey())
 	defaults.GET("", ListAgentDefaults)
+	defaults.GET("/:source", GetAgentDefault)
 	defaults.PUT("/:source", PutAgentDefault)
 	defaults.DELETE("/:source", DeleteAgentDefault)
 }
