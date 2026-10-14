@@ -119,7 +119,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Upserts the caller's default agent for one source: the agent of an existing source is overwritten, a source that does not exist is created. The agent has to belong to the caller.",
+                "description": "Upserts the caller's default agent for one source: the agent of an existing source is overwritten, a source that does not exist is created. The agent has to be one the caller may use: its own, or one another user shares.",
                 "consumes": [
                     "application/json"
                 ],
@@ -241,7 +241,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns all of the caller's agents, ordered by name. Not paginated: a user has few of them.",
+                "description": "Returns the caller's own agents plus every agent another user shares, ordered by name. A shared agent carries ` + "`" + `is_public` + "`" + ` true and ` + "`" + `owned` + "`" + ` false, and cannot be changed by anyone but its owner. Not paginated: a user has few of them.",
                 "produces": [
                     "application/json"
                 ],
@@ -279,7 +279,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "The agent belongs to the caller. Answers 201 with a Location header pointing at the new agent.",
+                "description": "The agent belongs to the caller. ` + "`" + `is_public` + "`" + ` shares it with every other user and is reserved to superusers. Answers 201 with a Location header pointing at the new agent.",
                 "consumes": [
                     "application/json"
                 ],
@@ -326,6 +326,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
                     "409": {
                         "description": "Conflict",
                         "schema": {
@@ -348,7 +354,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns the name of all of the caller's agents, ordered by name. The rest of each agent is left out. Not paginated: a user has few of them.",
+                "description": "Returns the name of the caller's own agents plus the ones other users share, ordered by name. The rest of each agent is left out. Not paginated: a user has few of them.",
                 "produces": [
                     "application/json"
                 ],
@@ -388,7 +394,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns one of the caller's agents. Another user's agent is reported as 404.",
+                "description": "Returns an agent the caller may use: one it owns, or one another user shares. An agent the caller may not use is reported as 404.",
                 "produces": [
                     "application/json"
                 ],
@@ -445,7 +451,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Every field is optional and a field that is absent is left untouched. Another user's agent is reported as 404.",
+                "description": "Every field is optional and a field that is absent is left untouched. ` + "`" + `is_public` + "`" + ` shares the agent with every other user and is reserved to superusers. Another user's agent is reported as 404, so only the owner changes a shared one.",
                 "consumes": [
                     "application/json"
                 ],
@@ -490,6 +496,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/utils.ErrorResponse"
                         }
@@ -3179,9 +3191,17 @@ const docTemplate = `{
                     "type": "string",
                     "example": "5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
                 },
+                "is_public": {
+                    "type": "boolean",
+                    "example": false
+                },
                 "name": {
                     "type": "string",
                     "example": "Angel Holiday"
+                },
+                "owned": {
+                    "type": "boolean",
+                    "example": true
                 },
                 "prompts": {
                     "type": "array",
@@ -3253,6 +3273,10 @@ const docTemplate = `{
             "properties": {
                 "description": {
                     "type": "string"
+                },
+                "is_public": {
+                    "type": "boolean",
+                    "example": false
                 },
                 "name": {
                     "type": "string",
@@ -3701,6 +3725,9 @@ const docTemplate = `{
             "properties": {
                 "description": {
                     "type": "string"
+                },
+                "is_public": {
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"

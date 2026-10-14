@@ -25,7 +25,8 @@ type AgentDefaultDTO struct {
 }
 
 // PutAgentDefaultRequest is the body of PUT /api/agent-defaults/{source}.
-// agent_id is required and must name one of the caller's agents.
+// agent_id is required and must name an agent the caller may use: its own, or
+// one another user shares.
 type PutAgentDefaultRequest struct {
 	AgentID uuid.UUID `json:"agent_id" example:"5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 }
@@ -104,7 +105,7 @@ func GetAgentDefault(c *gin.Context) {
 // PutAgentDefault creates or overwrites the caller's default agent for a source.
 //
 //	@Summary		Set a default agent
-//	@Description	Upserts the caller's default agent for one source: the agent of an existing source is overwritten, a source that does not exist is created. The agent has to belong to the caller.
+//	@Description	Upserts the caller's default agent for one source: the agent of an existing source is overwritten, a source that does not exist is created. The agent has to be one the caller may use: its own, or one another user shares.
 //	@Tags			agent-defaults
 //	@Security		BearerAuth
 //	@Accept			json

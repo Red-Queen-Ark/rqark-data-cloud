@@ -35,8 +35,9 @@ func GetAgentDefault(ctx context.Context, userID uuid.UUID, source string) (*rep
 }
 
 // SetAgentDefault upserts the default agent userID uses on source. The agent has
-// to belong to the same user, so a default can never point at another account's
-// agent.
+// to be one userID may use: its own, or one another user shares. A default can
+// therefore point at an agent owned by someone else, but only while that agent
+// stays shared.
 func SetAgentDefault(ctx context.Context, userID uuid.UUID, source string, agentID uuid.UUID) (*repository.AgentDefault, error) {
 	if err := validateAgentDefaultSource(source); err != nil {
 		return nil, err
@@ -44,7 +45,7 @@ func SetAgentDefault(ctx context.Context, userID uuid.UUID, source string, agent
 	if agentID == uuid.Nil {
 		return nil, &ValidationError{Message: "agent_id is required."}
 	}
-	if _, err := repository.GetAgentByID(ctx, config.DB, userID, agentID); err != nil {
+	if _, err := repository.GetVisibleAgentByID(ctx, config.DB, userID, agentID); err != nil {
 		return nil, err
 	}
 

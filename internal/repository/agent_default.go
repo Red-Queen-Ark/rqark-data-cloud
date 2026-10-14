@@ -88,6 +88,17 @@ func DeleteAgentDefault(ctx context.Context, db *gorm.DB, userID uuid.UUID, sour
 	return nil
 }
 
+// DeleteAgentDefaultsOfOthers removes every default row that points at agentID
+// for a user other than ownerID. Withdrawing an agent's share leaves those rows
+// pointing at an agent their user can no longer reach, so they go with the
+// share. The owner's own rows are kept: un-sharing does not take the agent away
+// from its owner.
+func DeleteAgentDefaultsOfOthers(ctx context.Context, db *gorm.DB, agentID, ownerID uuid.UUID) error {
+	return db.WithContext(ctx).
+		Where("agent_id = ? AND user_id <> ?", agentID, ownerID).
+		Delete(&AgentDefault{}).Error
+}
+
 // agentDefaultLookupError maps GORM's not-found error onto the repository's own.
 func agentDefaultLookupError(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {

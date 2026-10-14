@@ -108,9 +108,10 @@ func TestAgentDefaultUpsertsPerSource(t *testing.T) {
 	}
 }
 
-// TestAgentDefaultRefusesAnotherUsersAgent covers the boundary: a default has to
-// point at an agent the same user owns.
-func TestAgentDefaultRefusesAnotherUsersAgent(t *testing.T) {
+// TestAgentDefaultRefusesAnAgentTheUserCannotUse covers the boundary: a default
+// has to point at an agent the caller may use, and another user's private agent
+// is not one of them.
+func TestAgentDefaultRefusesAnAgentTheUserCannotUse(t *testing.T) {
 	db := agentDefaultTestDB(t)
 	owner := testAgentDefaultUser(t, db)
 	viewer := testAgentDefaultUser(t, db)
@@ -118,6 +119,63 @@ func TestAgentDefaultRefusesAnotherUsersAgent(t *testing.T) {
 
 	if _, err := SetAgentDefault(context.Background(), viewer.ID, "TUI", foreign.ID); !errors.Is(err, repository.ErrAgentNotFound) {
 		t.Errorf("SetAgentDefault with another user's agent = %v, want %v", err, repository.ErrAgentNotFound)
+	}
+}
+
+// TestAgentDefaultAcceptsASharedAgent covers the other half of the boundary: an
+// agent another user shares is one the caller may use, so it can be the default
+// of a source.
+func TestAgentDefaultAcceptsASharedAgent(t *testing.T) {
+	db := agentDefaultTestDB(t)
+	owner := testAgentDefaultUser(t, db)
+	viewer := testAgentDefaultUser(t, db)
+	shared := newTestAgent(t, db, owner)
+
+	on := true
+	if _, err := UpdateAgent(context.Background(), owner.ID, true, shared.ID, UpdateAgentInput{IsPublic: &on}); err != nil {
+		t.Fatalf("UpdateAgent sharing: %v", err)
+	}
+
+	created, err := SetAgentDefault(context.Background(), viewer.ID, "TUI", shared.ID)
+	if err != nil {
+		t.Fatalf("SetAgentDefault with a shared agent: %v", err)
+	}
+	if created.AgentID != shared.ID {
+		t.Errorf("agent_id = %s, want the shared %s", created.AgentID, shared.ID)
+	}
+}
+
+// TestUnsharingAnAgentClearsTheDefaultsOfOthers covers the cleanup: withdrawing
+// the share takes the agent off every other user's list, so a default they set
+// on it is not left pointing at an agent they can no longer reach. The owner's
+// own default survives.
+func TestUnsharingAnAgentClearsTheDefaultsOfOthers(t *testing.T) {
+	db := agentDefaultTestDB(t)
+	owner := testAgentDefaultUser(t, db)
+	viewer := testAgentDefaultUser(t, db)
+	shared := newTestAgent(t, db, owner)
+
+	on := true
+	if _, err := UpdateAgent(context.Background(), owner.ID, true, shared.ID, UpdateAgentInput{IsPublic: &on}); err != nil {
+		t.Fatalf("UpdateAgent sharing: %v", err)
+	}
+	if _, err := SetAgentDefault(context.Background(), viewer.ID, "TUI", shared.ID); err != nil {
+		t.Fatalf("SetAgentDefault of the viewer: %v", err)
+	}
+	if _, err := SetAgentDefault(context.Background(), owner.ID, "TUI", shared.ID); err != nil {
+		t.Fatalf("SetAgentDefault of the owner: %v", err)
+	}
+
+	off := false
+	if _, err := UpdateAgent(context.Background(), owner.ID, true, shared.ID, UpdateAgentInput{IsPublic: &off}); err != nil {
+		t.Fatalf("UpdateAgent un-sharing: %v", err)
+	}
+
+	if _, err := GetAgentDefault(context.Background(), viewer.ID, "TUI"); !errors.Is(err, repository.ErrAgentDefaultNotFound) {
+		t.Errorf("the viewer's default survived the un-share = %v, want %v", err, repository.ErrAgentDefaultNotFound)
+	}
+	if _, err := GetAgentDefault(context.Background(), owner.ID, "TUI"); err != nil {
+		t.Errorf("the owner's own default did not survive the un-share: %v", err)
 	}
 }
 

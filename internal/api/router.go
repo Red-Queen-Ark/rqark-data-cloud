@@ -101,6 +101,8 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.Conflict, "Group name is already taken.")
 	case errors.Is(err, service.ErrAgentNameTaken):
 		utils.Abort(c, utils.Conflict, "Agent name is already taken.")
+	case errors.Is(err, service.ErrAgentPublicForbidden):
+		utils.Abort(c, utils.Forbidden, "Only a superuser can share an agent.")
 	case errors.Is(err, service.ErrSessionConflict):
 		utils.Abort(c, utils.Conflict, "Session already exists.")
 	case errors.Is(err, repository.ErrAgentNotFound):

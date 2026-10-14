@@ -21,6 +21,8 @@ Unique index `(user_id, source)` —— 每個用戶每個 `source` 最多一個
 
 `agent_id` 用 `ON DELETE CASCADE`：一個 agent 被刪，指向佢嘅默認行一齊清，唔會留住指向空氣嘅 id。
 
+`agent_id` 亦會因為 un-share 而清：一個公用 agent 被擁有者收返 `is_public` 時，**其他用戶**指向佢嘅默認行即時刪走（擁有者自己嘅默認行留住，因為 un-share 唔會將個 agent 從擁有者手上攞走）。詳見 `agents.md` 嘅「公用 agent」。
+
 # API
 
 | Method | Path | Request body | 說明 |
@@ -59,7 +61,7 @@ PUT 回單一 object（同 array 內嘅元素一樣），唔係 array。`GET /ap
 
 - **`source` 係 identity** —— unique `(user_id, source)`。PUT 唔理個 `source` 存在未，一律 upsert：存在就改 `agent_id`，唔存在就新增。
 - **`source` 格式** —— 長度 1–32，只准 `[A-Za-z0-9_.-]`（URL-safe，可直接放 path）。唔合法回 `400`。上限 32 同 `sessions.source` 一致；因為要放入 path，所以比 `sessions.source` 多一層字元限制。
-- **`agent_id` 必填** —— 一定要係呼叫者自己嘅 agent。指去其他用戶嘅 agent（或者唔存在嘅 agent）一律回 `404`，唔回 `403`，避免枚舉 id（同其他 resource 一致）。
+- **`agent_id` 必填** —— 一定要係呼叫者可以用嘅 agent：自己嘅，或者人哋設做公用嘅。指去一個呼叫者用唔到嘅 agent（唔存在、或者係人哋嘅但唔公用）一律回 `404`，唔回 `403`，避免枚舉 id（同其他 resource 一致）。公用 agent 被 un-share 之後，指向佢嘅默認行會即刻被刪（見下）。
 - **`created_at` / `updated_at` 由 server 管** —— request 帶咗都忽略。
 - **唔分頁** —— 回 array（同 `/api/agents`、`/api/providers`、`/api/sessions`、`/api/user-config` 一致）：呢啲係用戶自己嘅默認設定，一次過攞齊先夠做本地覆寫。
 - **跨用戶** —— 所有 query 都帶 `user_id = <token 用戶>`；`GET` / `DELETE` 一個冇設過默認嘅 `source` 回 `404`。

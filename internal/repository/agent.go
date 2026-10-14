@@ -39,8 +39,11 @@ type Agent struct {
 	Description string        `gorm:"type:text;not null;default:''"`
 	Prompts     []AgentPrompt `gorm:"serializer:json;type:jsonb;not null;default:'[]'"`
 	Tools       []AgentTool   `gorm:"serializer:json;type:jsonb;not null;default:'[]'"`
-	CreatedAt   time.Time     `gorm:"not null"`
-	UpdatedAt   time.Time     `gorm:"not null"`
+	// IsPublic marks an agent its owner shares with every other user. Only a
+	// superuser may set it, and only the owner may change the row afterwards.
+	IsPublic  bool      `gorm:"not null;default:false;index"`
+	CreatedAt time.Time `gorm:"not null"`
+	UpdatedAt time.Time `gorm:"not null"`
 }
 
 // TableName pins the table name to the plural used by the rest of the schema.
@@ -56,6 +59,19 @@ func GetAgentByID(ctx context.Context, db *gorm.DB, userID, id uuid.UUID) (*Agen
 	return &agent, nil
 }
 
+// GetVisibleAgentByID loads an agent the viewer may use by primary key: one it
+// owns, or a public one another user shares. Any other agent is reported as
+// ErrAgentNotFound, so agent ids cannot be enumerated.
+func GetVisibleAgentByID(ctx context.Context, db *gorm.DB, userID, id uuid.UUID) (*Agent, error) {
+	var agent Agent
+	err := db.WithContext(ctx).
+		First(&agent, "id = ? AND (user_id = ? OR is_public = ?)", id, userID, true).Error
+	if err != nil {
+		return nil, agentLookupError(err)
+	}
+	return &agent, nil
+}
+
 // CreateAgent inserts an agent.
 func CreateAgent(ctx context.Context, db *gorm.DB, agent *Agent) error {
 	return db.WithContext(ctx).Create(agent).Error
@@ -66,13 +82,14 @@ func SaveAgent(ctx context.Context, db *gorm.DB, agent *Agent) error {
 	return db.WithContext(ctx).Save(agent).Error
 }
 
-// ListAgents returns all of userID's agents ordered by name. Agents are not
-// paginated: a user has few of them, and the app wants the whole set at once,
-// which is the same call the provider list makes.
+// ListAgents returns every agent userID may use: the ones it owns plus the
+// public agents other users share, ordered by name. Agents are not paginated: a
+// user has few of them, and the app wants the whole set at once, which is the
+// same call the provider list makes.
 func ListAgents(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]Agent, error) {
 	var agents []Agent
 	err := db.WithContext(ctx).
-		Where("user_id = ?", userID).
+		Where("user_id = ? OR is_public = ?", userID, true).
 		Order("name").Order("id").
 		Find(&agents).Error
 	if err != nil {
@@ -81,14 +98,15 @@ func ListAgents(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]Agent, er
 	return agents, nil
 }
 
-// ListAgentNames returns the names of all of userID's agents ordered by name.
-// It selects the single column the caller wants, so a listing that only needs
-// names never reads prompts or tools.
+// ListAgentNames returns the names of every agent userID may use: the ones it
+// owns plus the public agents other users share, ordered by name. It selects the
+// single column the caller wants, so a listing that only needs names never reads
+// prompts or tools.
 func ListAgentNames(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]string, error) {
 	names := []string{}
 	err := db.WithContext(ctx).
 		Model(&Agent{}).
-		Where("user_id = ?", userID).
+		Where("user_id = ? OR is_public = ?", userID, true).
 		Order("name").Order("id").
 		Pluck("name", &names).Error
 	if err != nil {

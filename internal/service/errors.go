@@ -46,6 +46,9 @@ var (
 	// ErrProviderPublicForbidden is returned when a caller that is not a
 	// superuser tries to share one of its providers.
 	ErrProviderPublicForbidden = errors.New("service: only a superuser can share a provider")
+	// ErrAgentPublicForbidden is returned when a caller that is not a
+	// superuser tries to share one of its agents.
+	ErrAgentPublicForbidden = errors.New("service: only a superuser can share an agent")
 )
 
 // uniqueViolation is the PostgreSQL SQLSTATE for a unique index violation.

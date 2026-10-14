@@ -14,13 +14,17 @@ import (
 )
 
 // AgentDTO is the agent representation returned by every agent endpoint. The
-// owner is left out: an agent is only ever visible to the user it belongs to.
+// owner is left out: an agent is only ever visible to the user it belongs to, or
+// to anyone once its owner shares it. `owned` tells the caller whether it may
+// change the row.
 type AgentDTO struct {
 	ID          uuid.UUID                `json:"id" example:"5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	Name        string                   `json:"name" example:"Angel Holiday"`
 	Description string                   `json:"description" example:""`
 	Prompts     []repository.AgentPrompt `json:"prompts"`
 	Tools       []repository.AgentTool   `json:"tools"`
+	IsPublic    bool                     `json:"is_public" example:"false"`
+	Owned       bool                     `json:"owned" example:"true"`
 	CreatedAt   time.Time                `json:"created_at"`
 	UpdatedAt   time.Time                `json:"updated_at"`
 }
@@ -31,6 +35,7 @@ type CreateAgentRequest struct {
 	Description string                   `json:"description"`
 	Prompts     []repository.AgentPrompt `json:"prompts"`
 	Tools       []repository.AgentTool   `json:"tools"`
+	IsPublic    bool                     `json:"is_public" example:"false"`
 }
 
 // UpdateAgentRequest is the body of PUT /api/agents/{uuid}. Every field is
@@ -40,12 +45,15 @@ type UpdateAgentRequest struct {
 	Description *string                   `json:"description"`
 	Prompts     *[]repository.AgentPrompt `json:"prompts"`
 	Tools       *[]repository.AgentTool   `json:"tools"`
+	IsPublic    *bool                     `json:"is_public"`
 }
 
 // toAgentDTO converts a stored agent into its wire form. The prompts and tools
 // are passed through untouched; nil is reported as an empty list so that the
-// two columns always mirror the table defaults.
-func toAgentDTO(agent *repository.Agent) AgentDTO {
+// two columns always mirror the table defaults. `viewerID` is the caller, and
+// decides the derived `owned` flag: only the owner may change an agent, and
+// another user only ever reaches a shared one.
+func toAgentDTO(agent *repository.Agent, viewerID uuid.UUID) AgentDTO {
 	prompts := agent.Prompts
 	if prompts == nil {
 		prompts = []repository.AgentPrompt{}
@@ -60,15 +68,17 @@ func toAgentDTO(agent *repository.Agent) AgentDTO {
 		Description: agent.Description,
 		Prompts:     prompts,
 		Tools:       tools,
+		IsPublic:    agent.IsPublic,
+		Owned:       agent.UserID == viewerID,
 		CreatedAt:   agent.CreatedAt,
 		UpdatedAt:   agent.UpdatedAt,
 	}
 }
 
-// ListAgents returns every agent of the caller.
+// ListAgents returns every agent the caller may use.
 //
 //	@Summary		List agents
-//	@Description	Returns all of the caller's agents, ordered by name. Not paginated: a user has few of them.
+//	@Description	Returns the caller's own agents plus every agent another user shares, ordered by name. A shared agent carries `is_public` true and `owned` false, and cannot be changed by anyone but its owner. Not paginated: a user has few of them.
 //	@Tags			agents
 //	@Security		BearerAuth
 //	@Produce		json
@@ -91,15 +101,15 @@ func ListAgents(c *gin.Context) {
 
 	items := make([]AgentDTO, 0, len(agents))
 	for i := range agents {
-		items = append(items, toAgentDTO(&agents[i]))
+		items = append(items, toAgentDTO(&agents[i], actor.ID))
 	}
 	c.JSON(http.StatusOK, items)
 }
 
-// ListAgentNames returns the name of every agent of the caller.
+// ListAgentNames returns the name of every agent the caller may use.
 //
 //	@Summary		List agent names
-//	@Description	Returns the name of all of the caller's agents, ordered by name. The rest of each agent is left out. Not paginated: a user has few of them.
+//	@Description	Returns the name of the caller's own agents plus the ones other users share, ordered by name. The rest of each agent is left out. Not paginated: a user has few of them.
 //	@Tags			agents
 //	@Security		BearerAuth
 //	@Produce		json
@@ -125,7 +135,7 @@ func ListAgentNames(c *gin.Context) {
 // CreateAgent creates an agent.
 //
 //	@Summary		Create an agent
-//	@Description	The agent belongs to the caller. Answers 201 with a Location header pointing at the new agent.
+//	@Description	The agent belongs to the caller. `is_public` shares it with every other user and is reserved to superusers. Answers 201 with a Location header pointing at the new agent.
 //	@Tags			agents
 //	@Security		BearerAuth
 //	@Accept			json
@@ -135,6 +145,7 @@ func ListAgentNames(c *gin.Context) {
 //	@Header			201		{string}	Location	"URL of the created agent"
 //	@Failure		400		{object}	utils.ErrorResponse
 //	@Failure		401		{object}	utils.ErrorResponse
+//	@Failure		403		{object}	utils.ErrorResponse
 //	@Failure		409		{object}	utils.ErrorResponse
 //	@Failure		500		{object}	utils.ErrorResponse
 //	@Router			/agents [post]
@@ -151,11 +162,12 @@ func CreateAgent(c *gin.Context) {
 		return
 	}
 
-	agent, err := service.CreateAgent(c.Request.Context(), actor.ID, service.CreateAgentInput{
+	agent, err := service.CreateAgent(c.Request.Context(), actor.ID, actor.IsSuperuser, service.CreateAgentInput{
 		Name:        request.Name,
 		Description: request.Description,
 		Prompts:     request.Prompts,
 		Tools:       request.Tools,
+		IsPublic:    request.IsPublic,
 	})
 	if err != nil {
 		abortError(c, err)
@@ -163,13 +175,13 @@ func CreateAgent(c *gin.Context) {
 	}
 
 	c.Header("Location", "/api/agents/"+agent.ID.String())
-	c.JSON(http.StatusCreated, toAgentDTO(agent))
+	c.JSON(http.StatusCreated, toAgentDTO(agent, actor.ID))
 }
 
 // GetAgent returns one agent.
 //
 //	@Summary		Get an agent
-//	@Description	Returns one of the caller's agents. Another user's agent is reported as 404.
+//	@Description	Returns an agent the caller may use: one it owns, or one another user shares. An agent the caller may not use is reported as 404.
 //	@Tags			agents
 //	@Security		BearerAuth
 //	@Produce		json
@@ -196,13 +208,13 @@ func GetAgent(c *gin.Context) {
 		abortError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toAgentDTO(agent))
+	c.JSON(http.StatusOK, toAgentDTO(agent, actor.ID))
 }
 
 // UpdateAgent updates one agent.
 //
 //	@Summary		Update an agent
-//	@Description	Every field is optional and a field that is absent is left untouched. Another user's agent is reported as 404.
+//	@Description	Every field is optional and a field that is absent is left untouched. `is_public` shares the agent with every other user and is reserved to superusers. Another user's agent is reported as 404, so only the owner changes a shared one.
 //	@Tags			agents
 //	@Security		BearerAuth
 //	@Accept			json
@@ -212,6 +224,7 @@ func GetAgent(c *gin.Context) {
 //	@Success		200		{object}	AgentDTO
 //	@Failure		400		{object}	utils.ErrorResponse
 //	@Failure		401		{object}	utils.ErrorResponse
+//	@Failure		403		{object}	utils.ErrorResponse
 //	@Failure		404		{object}	utils.ErrorResponse
 //	@Failure		409		{object}	utils.ErrorResponse
 //	@Failure		500		{object}	utils.ErrorResponse
@@ -233,17 +246,18 @@ func UpdateAgent(c *gin.Context) {
 		return
 	}
 
-	agent, err := service.UpdateAgent(c.Request.Context(), actor.ID, id, service.UpdateAgentInput{
+	agent, err := service.UpdateAgent(c.Request.Context(), actor.ID, actor.IsSuperuser, id, service.UpdateAgentInput{
 		Name:        request.Name,
 		Description: request.Description,
 		Prompts:     request.Prompts,
 		Tools:       request.Tools,
+		IsPublic:    request.IsPublic,
 	})
 	if err != nil {
 		abortError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toAgentDTO(agent))
+	c.JSON(http.StatusOK, toAgentDTO(agent, actor.ID))
 }
 
 // DeleteAgent deletes one agent.
@@ -277,9 +291,11 @@ func DeleteAgent(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// AgentsRouter registers the agent routes. There is no superuser path here:
-// every agent belongs to the caller, and every query is scoped to the user
-// behind the access token or the API key.
+// AgentsRouter registers the agent routes. There is no separate superuser path:
+// sharing an agent is a field of the agent, checked in the service, and the
+// routes that change one are scoped to its owner, so only the owner of a shared
+// agent may change it. An access token or an API key is accepted: an agent is
+// what a client needs before it can start a session.
 func AgentsRouter(r *gin.Engine) {
 	agents := r.Group("/api/agents", authOrAPIKey())
 	agents.GET("", ListAgents)
