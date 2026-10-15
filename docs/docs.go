@@ -354,7 +354,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns the name of the caller's own agents plus the ones other users share, ordered by name. The rest of each agent is left out. Not paginated: a user has few of them.",
+                "description": "Returns the id and name of the caller's own agents plus the ones other users share, ordered by name then id. The rest of each agent is left out. Not paginated: a user has few of them.",
                 "produces": [
                     "application/json"
                 ],
@@ -368,7 +368,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "string"
+                                "$ref": "#/definitions/repository.AgentName"
                             }
                         }
                     },
@@ -3932,6 +3932,17 @@ const docTemplate = `{
                 "version": {
                     "type": "string",
                     "example": "v0.1.6"
+                }
+            }
+        },
+        "repository.AgentName": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },

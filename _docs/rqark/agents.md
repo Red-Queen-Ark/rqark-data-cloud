@@ -41,6 +41,7 @@ tools:
 | Method | Path | Request body | 說明 |
 |---|---|---|---|
 | GET | `/api/agents` | — | 列出你可使用嘅 agent：自己嘅加其他人公用嘅，`name` 升序 |
+| GET | `/api/agents/names` | — | 列出你可使用嘅 agent 嘅 `[{ id, name }]`（`name` then `id` 升序），唔讀 `prompts` / `tools`，俾只需要揀 agent 嘅客戶端用 |
 | GET | `/api/agents/{uuid}` | — | 取得單一 agent（自己嘅或者人哋公用嘅） |
 | POST | `/api/agents` | `{ "name": str, "description"?: str, "prompts"?: [...], "tools"?: [...], "is_public"?: bool }` | 建立 agent，回 `201` + `Location` |
 | PUT | `/api/agents/{uuid}` | 同 POST，未帶入的欄位不變更 | 更新 agent |

@@ -561,6 +561,13 @@ definitions:
         example: v0.1.6
         type: string
     type: object
+  repository.AgentName:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
   repository.AgentPrompt:
     properties:
       name:
@@ -1029,9 +1036,9 @@ paths:
       - agents
   /agents/names:
     get:
-      description: 'Returns the name of the caller''s own agents plus the ones other
-        users share, ordered by name. The rest of each agent is left out. Not paginated:
-        a user has few of them.'
+      description: 'Returns the id and name of the caller''s own agents plus the ones
+        other users share, ordered by name then id. The rest of each agent is left
+        out. Not paginated: a user has few of them.'
       produces:
       - application/json
       responses:
@@ -1039,7 +1046,7 @@ paths:
           description: OK
           schema:
             items:
-              type: string
+              $ref: '#/definitions/repository.AgentName'
             type: array
         "401":
           description: Unauthorized

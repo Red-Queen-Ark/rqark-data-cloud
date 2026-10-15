@@ -133,9 +133,9 @@ func ListAgents(ctx context.Context, userID uuid.UUID) ([]repository.Agent, erro
 	return repository.ListAgents(ctx, config.DB, userID)
 }
 
-// ListAgentNames returns the names of all agents userID may use: the ones it
-// owns plus the public agents other users share.
-func ListAgentNames(ctx context.Context, userID uuid.UUID) ([]string, error) {
+// ListAgentNames returns the id and name of all agents userID may use: the ones
+// it owns plus the public agents other users share.
+func ListAgentNames(ctx context.Context, userID uuid.UUID) ([]repository.AgentName, error) {
 	return repository.ListAgentNames(ctx, config.DB, userID)
 }
 

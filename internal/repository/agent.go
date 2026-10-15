@@ -29,6 +29,14 @@ type AgentTool struct {
 	Params map[string]any `json:"params,omitempty"`
 }
 
+// AgentName is one entry of the names listing: the id a caller needs to address
+// the agent plus the name it shows. Prompts and tools are left out, so a caller
+// that only fills a picker never reads them.
+type AgentName struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
 // Agent is the agents table. The pair (user_id, name) is unique because the app
 // keys both its local config file names and its sessions by agent name, so two
 // agents of one user sharing a name would overwrite each other.
@@ -98,17 +106,19 @@ func ListAgents(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]Agent, er
 	return agents, nil
 }
 
-// ListAgentNames returns the names of every agent userID may use: the ones it
-// owns plus the public agents other users share, ordered by name. It selects the
-// single column the caller wants, so a listing that only needs names never reads
-// prompts or tools.
-func ListAgentNames(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]string, error) {
-	names := []string{}
+// ListAgentNames returns the id and name of every agent userID may use: the ones
+// it owns plus the public agents other users share, ordered by name then id. It
+// selects only those two columns, so a listing that only needs names the user can
+// pick never reads prompts or tools. The order matches ListAgents, which is what
+// makes a name that two agents share resolve to the same row on both sides.
+func ListAgentNames(ctx context.Context, db *gorm.DB, userID uuid.UUID) ([]AgentName, error) {
+	names := []AgentName{}
 	err := db.WithContext(ctx).
 		Model(&Agent{}).
 		Where("user_id = ? OR is_public = ?", userID, true).
 		Order("name").Order("id").
-		Pluck("name", &names).Error
+		Select("id", "name").
+		Scan(&names).Error
 	if err != nil {
 		return nil, err
 	}

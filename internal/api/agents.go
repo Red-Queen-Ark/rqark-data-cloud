@@ -106,14 +106,14 @@ func ListAgents(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-// ListAgentNames returns the name of every agent the caller may use.
+// ListAgentNames returns the id and name of every agent the caller may use.
 //
 //	@Summary		List agent names
-//	@Description	Returns the name of the caller's own agents plus the ones other users share, ordered by name. The rest of each agent is left out. Not paginated: a user has few of them.
+//	@Description	Returns the id and name of the caller's own agents plus the ones other users share, ordered by name then id. The rest of each agent is left out. Not paginated: a user has few of them.
 //	@Tags			agents
 //	@Security		BearerAuth
 //	@Produce		json
-//	@Success		200	{array}		string
+//	@Success		200	{array}		repository.AgentName
 //	@Failure		401	{object}	utils.ErrorResponse
 //	@Failure		500	{object}	utils.ErrorResponse
 //	@Router			/agents/names [get]
