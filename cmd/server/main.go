@@ -18,7 +18,13 @@ import (
 // @version					1.0
 // @description				Data cloud API.
 //
-// @host						localhost:8080
+// The spec carries no @host on purpose. Every deployment picks its own address
+// and port (`PORT`, 7302 by default) and the service sits behind a proxy it does
+// not know the public name of, so any host written here would be wrong for every
+// deployment but one. Swagger 2.0 reads a missing host as "the host serving the
+// documentation", which is exactly right: the spec is served by the service it
+// describes, at /api/swagger.json and /api/swagger.yml.
+//
 // @BasePath					/api
 //
 // @tag.name					ping

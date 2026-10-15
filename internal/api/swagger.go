@@ -1,8 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/swaggo/swag"
@@ -75,18 +77,53 @@ func SwaggerPreflight(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// dropEmptyAddressFields removes the parts of the document that would pin the
+// address the service is reached at.
+//
+// The generator writes a `host` key even when no @host annotation is set, and it
+// writes `schemes` unconditionally, so a spec with neither annotation reaches a
+// caller carrying `"host": ""` and `"schemes": []`. An empty host is not a valid
+// host, and both keys are better absent than empty: Swagger 2.0 reads a missing
+// host and a missing scheme as "the one serving the documentation", which is what
+// this service wants. Every deployment picks its own address, its own port and
+// whether it terminates TLS — the port is `PORT`, 7302 by default, and the public
+// name belongs to the proxy in front — so anything written here would be wrong
+// everywhere but on the machine it was generated on.
+func dropEmptyAddressFields(doc map[string]any) {
+	if host, ok := doc["host"].(string); ok && host == "" {
+		delete(doc, "host")
+	}
+	if schemes, ok := doc["schemes"].([]any); ok && len(schemes) == 0 {
+		delete(doc, "schemes")
+	}
+}
+
 func SwaggerRouter(r *gin.Engine) {
 	doc, err := swag.ReadDoc()
 	if err != nil {
 		panic("api: swagger doc not registered, run `go generate ./...`: " + err.Error())
 	}
 
-	swaggerJSON = doc
-
 	var generic map[string]any
 	if err := json.Unmarshal([]byte(doc), &generic); err != nil {
 		panic("api: swagger doc is not valid JSON: " + err.Error())
 	}
+
+	dropEmptyAddressFields(generic)
+
+	// Both documents are rendered from the one parsed spec, so the JSON and the
+	// YAML can never come to disagree about it. HTML escaping is off to keep a
+	// description such as "Bearer <access_token>" readable instead of written as
+	// \u003c, which is what the generated document looks like on disk.
+	var jsonDoc bytes.Buffer
+	encoder := json.NewEncoder(&jsonDoc)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "    ")
+	if err := encoder.Encode(generic); err != nil {
+		panic("api: cannot marshal swagger json: " + err.Error())
+	}
+
+	swaggerJSON = strings.TrimSuffix(jsonDoc.String(), "\n")
 
 	yml, err := yaml.Marshal(generic)
 	if err != nil {
