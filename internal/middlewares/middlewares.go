@@ -81,16 +81,37 @@ func AuthOrAPIKey(secret []byte, load UserLoader, apiKey APIKeyAuthenticator) gi
 	}
 }
 
+// runScopeRoutes is the whole surface a run-scoped token may reach. The key is
+// the method plus the route pattern, so the uuid is compared as a path parameter
+// rather than as text, and a route added later is unreachable until it is named
+// here.
+var runScopeRoutes = map[string]bool{
+	"GET /api/sessions/:uuid":          true,
+	"PUT /api/sessions/:uuid":          true,
+	"GET /api/sessions/:uuid/messages": true,
+}
+
+// runScopeAllows reports whether a run token bound to sessionID may make this
+// call. The only session it may touch is its own: a run writes the transcript of
+// the run it belongs to and reads nothing else.
+func runScopeAllows(c *gin.Context, sessionID uuid.UUID) bool {
+	if !runScopeRoutes[c.Request.Method+" "+c.FullPath()] {
+		return false
+	}
+	return c.Param("uuid") == sessionID.String()
+}
+
 // authenticateAccessToken verifies one access token and loads its user, writing
-// the matching rejection when either step fails.
+// the matching rejection when either step fails. A run-scoped token is held to
+// its own session here, so a handler behind Auth never sees one.
 func authenticateAccessToken(c *gin.Context, raw string, secret []byte, load UserLoader) (*repository.User, bool) {
-	userID, err := utils.ParseAccessToken(raw, secret)
+	claims, err := utils.ParseTokenClaims(raw, secret)
 	if err != nil {
 		utils.Abort(c, utils.Unauthorized, "Invalid or expired access token.")
 		return nil, false
 	}
 
-	user, err := load(c.Request.Context(), userID)
+	user, err := load(c.Request.Context(), claims.UserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
 			utils.Abort(c, utils.Unauthorized, "Invalid or expired access token.")
@@ -102,6 +123,11 @@ func authenticateAccessToken(c *gin.Context, raw string, secret []byte, load Use
 
 	if !user.IsActive {
 		utils.Abort(c, utils.Unauthorized, "Invalid or expired access token.")
+		return nil, false
+	}
+
+	if claims.Scope == utils.ScopeRun && !runScopeAllows(c, claims.SessionID) {
+		utils.Abort(c, utils.Forbidden, "This token cannot be used here.")
 		return nil, false
 	}
 	return user, true
