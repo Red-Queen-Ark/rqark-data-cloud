@@ -34,7 +34,10 @@ const (
 // resolved rows rather than names, so a run cannot be redirected by a rename
 // between the claim and the execution.
 type ClaimedRun struct {
-	RunID      uuid.UUID
+	RunID uuid.UUID
+	// UserID names the account the run acts for. It is what the runner names the
+	// user's sandbox by, so a run sees the same files as that user's chat.
+	UserID     uuid.UUID
 	Task       repository.Task
 	Agent      repository.Agent
 	Provider   repository.Provider
@@ -239,6 +242,7 @@ func claimOne(ctx context.Context, tx *gorm.DB, task *repository.Task, now time.
 
 	return &ClaimedRun{
 		RunID:      run.ID,
+		UserID:     task.UserID,
 		Task:       *task,
 		Agent:      *agent,
 		Provider:   *provider,

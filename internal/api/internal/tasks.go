@@ -73,6 +73,7 @@ type ProviderDefinition struct {
 // reaches the one session in this entry and nothing else.
 type ClaimedRun struct {
 	RunID       uuid.UUID          `json:"run_id"`
+	UserID      uuid.UUID          `json:"user_id"`
 	Task        TaskDefinition     `json:"task"`
 	AgentDef    AgentDefinition    `json:"agent_def"`
 	ProviderDef ProviderDefinition `json:"provider_def"`
@@ -119,7 +120,8 @@ func toClaimedRun(run *service.ClaimedRun) ClaimedRun {
 	}
 
 	return ClaimedRun{
-		RunID: run.RunID,
+		RunID:  run.RunID,
+		UserID: run.UserID,
 		Task: TaskDefinition{
 			ID:           run.Task.ID,
 			Name:         run.Task.Name,
