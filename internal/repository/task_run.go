@@ -70,6 +70,18 @@ func SaveTaskRun(ctx context.Context, db *gorm.DB, run *TaskRun) error {
 	return db.WithContext(ctx).Save(run).Error
 }
 
+// HasRunningRun reports whether taskID has a run in flight.
+func HasRunningRun(ctx context.Context, db *gorm.DB, taskID uuid.UUID) (bool, error) {
+	var count int64
+	if err := db.WithContext(ctx).
+		Model(&TaskRun{}).
+		Where("task_id = ? AND status = ?", taskID, TaskRunRunning).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // ListTaskRuns returns one page of a task's runs, newest scheduled instant
 // first. Runs are paginated because they grow without bound: every fire of every
 // task adds a row.

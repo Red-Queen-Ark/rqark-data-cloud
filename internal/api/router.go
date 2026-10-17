@@ -112,6 +112,10 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.AgentAmbiguous, "More than one agent you can use carries that name.")
 	case errors.Is(err, service.ErrTaskProviderAmbiguous):
 		utils.Abort(c, utils.ProviderAmbiguous, "More than one provider you can use carries that name.")
+	case errors.Is(err, service.ErrTaskDisabled):
+		utils.Abort(c, utils.Conflict, "This task is paused. Enable it before running it.")
+	case errors.Is(err, service.ErrTaskRunInFlight):
+		utils.Abort(c, utils.Conflict, "This task is already running.")
 	case errors.Is(err, service.ErrAgentPublicForbidden):
 		utils.Abort(c, utils.Forbidden, "Only a superuser can share an agent.")
 	case errors.Is(err, service.ErrSessionConflict):

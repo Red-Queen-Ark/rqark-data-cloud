@@ -368,6 +368,40 @@ func ListTaskRuns(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.NewPage(items, total, page))
 }
 
+// RunTaskNow asks for one extra run of a task.
+//
+//	@Summary		Run a task now
+//	@Description	Asks for one run at the next tick, without waiting for the schedule. next_run_at is left alone, so a manual run never shifts an every task's phase or skips a cron task's next fire. The run is recorded with trigger 'manual' and answered through the run listing. A paused task, or one that is already running, is reported as 409.
+//	@Tags			tasks
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			uuid	path		string	true	"Task ID"	format(uuid)
+//	@Success		202		{object}	TaskDTO
+//	@Failure		400		{object}	utils.ErrorResponse
+//	@Failure		401		{object}	utils.ErrorResponse
+//	@Failure		404		{object}	utils.ErrorResponse
+//	@Failure		409		{object}	utils.ErrorResponse
+//	@Failure		500		{object}	utils.ErrorResponse
+//	@Router			/tasks/{uuid}/run [post]
+func RunTaskNow(c *gin.Context) {
+	actor, ok := middlewares.CurrentUser(c)
+	if !ok {
+		utils.Abort(c, utils.Unauthorized, "Authentication credentials were not provided.")
+		return
+	}
+	id, ok := parseUUIDParam(c, "uuid")
+	if !ok {
+		return
+	}
+
+	task, err := service.RunTaskNow(c.Request.Context(), actor.ID, id)
+	if err != nil {
+		abortError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, toTaskDTO(task))
+}
+
 // TasksRouter registers the task endpoints.
 func TasksRouter(r *gin.Engine) {
 	tasks := r.Group("/api/tasks", authOrAPIKey())
@@ -377,4 +411,5 @@ func TasksRouter(r *gin.Engine) {
 	tasks.PUT("/:uuid", UpdateTask)
 	tasks.DELETE("/:uuid", DeleteTask)
 	tasks.GET("/:uuid/runs", ListTaskRuns)
+	tasks.POST("/:uuid/run", RunTaskNow)
 }

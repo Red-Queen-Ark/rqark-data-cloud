@@ -36,6 +36,12 @@ var (
 	// ErrTaskRunAlreadyFinal is returned when a finalize call reaches a run that
 	// is no longer running, so its result was already recorded by someone else.
 	ErrTaskRunAlreadyFinal = errors.New("service: task run is already finalized")
+	// ErrTaskDisabled is returned when a run is asked for on a task whose
+	// schedule is switched off.
+	ErrTaskDisabled = errors.New("service: task is disabled")
+	// ErrTaskRunInFlight is returned when a run is asked for on a task that
+	// already has one running.
+	ErrTaskRunInFlight = errors.New("service: task already has a running run")
 	// ErrSessionConflict is returned when a create would reuse the id of a
 	// session that already exists. The app owns session ids, so a repeat means
 	// the app and the cloud disagree about a session rather than a fresh one.

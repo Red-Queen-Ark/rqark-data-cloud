@@ -206,6 +206,41 @@ func UpdateTask(ctx context.Context, userID, id uuid.UUID, in UpdateTaskInput) (
 	return task, nil
 }
 
+// RunTaskNow asks for one extra run of a task, at the next tick.
+//
+// The request is recorded on the task rather than dispatched here: the agent
+// cloud is the only thing that runs a task, and it picks the request up on its
+// next claim. next_run_at is deliberately untouched, because a manual run must
+// not shift the phase of an every task or skip a cron task's next fire.
+//
+// A disabled task is refused: its schedule is off, and running it once would be
+// a surprise rather than a shortcut. A task that is already running is refused
+// too, which is the same one-run-at-a-time rule the dispatcher enforces.
+func RunTaskNow(ctx context.Context, userID, id uuid.UUID) (*repository.Task, error) {
+	task, err := repository.GetTaskByID(ctx, config.DB, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	if !task.Enabled {
+		return nil, ErrTaskDisabled
+	}
+
+	running, err := repository.HasRunningRun(ctx, config.DB, id)
+	if err != nil {
+		return nil, err
+	}
+	if running {
+		return nil, ErrTaskRunInFlight
+	}
+
+	now := time.Now().UTC()
+	task.RunNowRequestedAt = &now
+	if err := repository.SaveTask(ctx, config.DB, task); err != nil {
+		return nil, mapWriteError(err)
+	}
+	return task, nil
+}
+
 // DeleteTask removes one of userID's tasks, its runs included.
 func DeleteTask(ctx context.Context, userID, id uuid.UUID) error {
 	return repository.DeleteTask(ctx, config.DB, userID, id)

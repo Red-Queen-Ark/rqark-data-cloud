@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"log"
 	"time"
 
@@ -52,12 +51,13 @@ type ClaimedRun struct {
 // backlog.
 const dueTasksSQL = `
 SELECT t.* FROM tasks t
-WHERE t.enabled = true
-  AND t.next_run_at IS NOT NULL
-  AND t.next_run_at <= ?
+WHERE (
+        (t.enabled = true AND t.next_run_at IS NOT NULL AND t.next_run_at <= ?)
+     OR t.run_now_requested_at IS NOT NULL
+  )
   AND NOT EXISTS (SELECT 1 FROM task_runs r WHERE r.task_id = t.id AND r.status = 'running')
   AND NOT EXISTS (SELECT 1 FROM task_runs r WHERE r.user_id = t.user_id AND r.status = 'running')
-ORDER BY t.next_run_at, t.id
+ORDER BY COALESCE(t.run_now_requested_at, t.next_run_at), t.id
 LIMIT ?
 FOR UPDATE SKIP LOCKED`
 
@@ -151,13 +151,24 @@ func userHasRunningRun(tx *gorm.DB, userID uuid.UUID) (bool, error) {
 // produced no run to dispatch, which happens for an at task that came due too
 // late and for a run that lost the slot to an existing row.
 func claimOne(ctx context.Context, tx *gorm.DB, task *repository.Task, now time.Time) (*ClaimedRun, bool, error) {
+	// A run requested by hand carries its own instant and never moves
+	// next_run_at: a manual run is one extra run, not a replacement for the slot
+	// the schedule already has. Moving it would drift an every task's phase and
+	// skip a cron task's next fire.
+	manual := task.RunNowRequestedAt != nil
 	slot := *task.NextRunAt
+	trigger := repository.TaskRunTriggerSchedule
+	if manual {
+		slot = *task.RunNowRequestedAt
+		trigger = repository.TaskRunTriggerManual
+	}
 
 	// An at task whose instant is older than the grace window is not dispatched:
 	// running it now would be firing a reminder that already stopped being true.
 	// The miss is recorded and the task switched off, so it does not stay due.
-	if task.ScheduleKind == repository.TaskScheduleAt && task.RunAt != nil && task.RunAt.Before(now.Add(-config.TaskAtGrace)) {
-		if err := recordFinishedRun(tx, task, slot, repository.TaskRunSkipped, TaskRunErrorMissed, now); err != nil {
+	// A manual run is asked for now, so it is never too late.
+	if !manual && task.ScheduleKind == repository.TaskScheduleAt && task.RunAt != nil && task.RunAt.Before(now.Add(-config.TaskAtGrace)) {
+		if err := recordFinishedRun(tx, task, slot, trigger, repository.TaskRunSkipped, TaskRunErrorMissed, now); err != nil {
 			return nil, false, err
 		}
 		return nil, false, advanceNextRunAt(tx, task, now)
@@ -165,22 +176,18 @@ func claimOne(ctx context.Context, tx *gorm.DB, task *repository.Task, now time.
 
 	agent, err := repository.FindAgentNamed(ctx, tx, task.UserID, task.AgentName)
 	if err != nil {
-		reason := TaskRunErrorAgentNotFound
-		if errors.Is(err, repository.ErrAgentAmbiguous) {
-			reason = TaskRunErrorAgentNotFound
-		}
-		if err := recordFinishedRun(tx, task, slot, repository.TaskRunError, reason, now); err != nil {
+		if err := recordFinishedRun(tx, task, slot, trigger, repository.TaskRunError, TaskRunErrorAgentNotFound, now); err != nil {
 			return nil, false, err
 		}
-		return nil, false, advanceNextRunAt(tx, task, now)
+		return nil, false, settleTask(tx, task, manual, now)
 	}
 
 	provider, err := repository.FindProviderNamed(ctx, tx, task.UserID, task.ProviderName)
 	if err != nil {
-		if err := recordFinishedRun(tx, task, slot, repository.TaskRunError, TaskRunErrorProviderNotFound, now); err != nil {
+		if err := recordFinishedRun(tx, task, slot, trigger, repository.TaskRunError, TaskRunErrorProviderNotFound, now); err != nil {
 			return nil, false, err
 		}
-		return nil, false, advanceNextRunAt(tx, task, now)
+		return nil, false, settleTask(tx, task, manual, now)
 	}
 
 	// The session is created here rather than through POST /api/sessions: the
@@ -200,7 +207,7 @@ func claimOne(ctx context.Context, tx *gorm.DB, task *repository.Task, now time.
 		TaskID:      task.ID,
 		UserID:      task.UserID,
 		Status:      repository.TaskRunRunning,
-		Trigger:     repository.TaskRunTriggerSchedule,
+		Trigger:     trigger,
 		ScheduledAt: slot,
 		StartedAt:   &now,
 		SessionID:   &session.ID,
@@ -218,10 +225,10 @@ func claimOne(ctx context.Context, tx *gorm.DB, task *repository.Task, now time.
 		if err := tx.Delete(&repository.Session{}, "id = ?", session.ID).Error; err != nil {
 			return nil, false, err
 		}
-		return nil, false, advanceNextRunAt(tx, task, now)
+		return nil, false, settleTask(tx, task, manual, now)
 	}
 
-	if err := advanceNextRunAt(tx, task, now); err != nil {
+	if err := settleTask(tx, task, manual, now); err != nil {
 		return nil, false, err
 	}
 
@@ -240,16 +247,28 @@ func claimOne(ctx context.Context, tx *gorm.DB, task *repository.Task, now time.
 	}, true, nil
 }
 
+// settleTask closes a claimed task's side of the transaction: a manual run only
+// clears the request that asked for it, while a scheduled run advances the
+// schedule. Both happen in the claim transaction, so neither can be lost and
+// neither can be repeated.
+func settleTask(tx *gorm.DB, task *repository.Task, manual bool, now time.Time) error {
+	if !manual {
+		return advanceNextRunAt(tx, task, now)
+	}
+	return tx.Model(&repository.Task{}).Where("id = ?", task.ID).
+		Update("run_now_requested_at", nil).Error
+}
+
 // recordFinishedRun writes a run row that starts and ends at the same instant,
 // which is what a claim that refuses to dispatch leaves behind. A slot that
 // already carries a run is left alone.
-func recordFinishedRun(tx *gorm.DB, task *repository.Task, slot time.Time, status, reason string, now time.Time) error {
+func recordFinishedRun(tx *gorm.DB, task *repository.Task, slot time.Time, trigger, status, reason string, now time.Time) error {
 	run := &repository.TaskRun{
 		ID:          uuid.New(),
 		TaskID:      task.ID,
 		UserID:      task.UserID,
 		Status:      status,
-		Trigger:     repository.TaskRunTriggerSchedule,
+		Trigger:     trigger,
 		ScheduledAt: slot,
 		StartedAt:   &now,
 		FinishedAt:  &now,

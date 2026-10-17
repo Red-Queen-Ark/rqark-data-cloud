@@ -7,11 +7,23 @@
 | `id` | UUID | PK，等於 app 本地生成嘅 session uuid |
 | `user_id` | UUID | FK → `users.id`，index，擁有者 |
 | `title` | string(255) | 預設 `''`，由 app `gen_title` 用 LLM 生成（prompt 限 8 words） |
+| `source` | string(32) | 預設 `''`，邊個應用程式上傳 |
 | `plan_items` | jsonb | 預設 `'[]'`，`[{ "id": str, "content": str, "status": str }]` |
 | `created_at` | datetime (UTC) | |
 | `updated_at` | datetime (UTC) | |
 
 `plan_items[].status` ∈ `pending` / `in_progress` / `completed` / `cancelled`。
+
+`source` 嘅值：
+
+| 值 | 邊個寫 |
+|---|---|
+| `TUI` | rqark-tui |
+| `AGENT_CLOUD` | rqark-agent-cloud 嘅 chat（web UI 用） |
+| `TASK` | data-cloud claim 自己建，一個 task run 嘅 transcript |
+| `''` | 冇指明來源（舊 client） |
+
+`GET /api/sessions?source=` 可以只取一個來源。client 應該只列自己嘅來源：chat sidebar 用 `AGENT_CLOUD`，所以 `source='TASK'` 嘅 run session 唔會出現喺 chat 清單。
 
 ## session_messages
 
@@ -47,15 +59,15 @@ PK 係 `(session_id, seq)`。得 `role` 同 `created_at` 抽做 column（方便�
 | Method | Path | Request body | 說明 |
 |---|---|---|---|
 | GET | `/api/sessions` | — | 列出自己嘅 session metadata（**唔含** messages），回 array，`updated_at` 新→舊 |
-| POST | `/api/sessions` | `{ "uuid"?: str, "title"?: str, "plan_items"?: [...] }` | 建立 session，回 `201` + `Location` |
+| POST | `/api/sessions` | `{ "uuid"?: str, "title"?: str, "source"?: str, "plan_items"?: [...] }` | 建立 session，回 `201` + `Location` |
 | GET | `/api/sessions/{uuid}` | — | 取得 session metadata（**唔含** messages） |
-| PUT | `/api/sessions/{uuid}` | `{ "title"?: str, "plan_items"?: [...], "history"?: [message] }`，未帶入的欄位不變更 | 更新 session；帶 `history` 就成批覆寫 messages |
+| PUT | `/api/sessions/{uuid}` | `{ "title"?: str, "source"?: str, "plan_items"?: [...], "history"?: [message] }`，未帶入的欄位不變更 | 更新 session；帶 `history` 就成批覆寫 messages |
 | DELETE | `/api/sessions/{uuid}` | — | 連 messages 一齊刪，回 `204` |
 | GET | `/api/sessions/{uuid}/messages` | — | 回 array，`seq` 升序 |
 
 全部需要 `Authorization: Bearer <access_token>`，亦收 `rqark-` API key（同 `/api/agents`、`/api/providers` 一致：app 就係用 key 同步 session 數據）。
 
-`sessions` 系列回應即 row 減 `user_id`（`id`、`title`、`plan_items`、`created_at`、`updated_at`），唔含 `history`；`/messages` 每項係 `{ "seq": int, "role": str, "data": object, "created_at": str|null }`。
+`sessions` 系列回應即 row 減 `user_id`（`id`、`title`、`source`、`plan_items`、`created_at`、`updated_at`），唔含 `history`；`/messages` 每項係 `{ "seq": int, "role": str, "data": object, "created_at": str|null }`。
 
 兩個 list 都**唔分頁**，直接回 array（同 `/api/agents`、`/api/providers` 一致）。理由同 agents 一樣：呢啲係 app 當「雲端版本地檔」同步用，`JSONLStorage.load()` 本身就係一次過讀齊所有 session 同整條 history，分頁對 app 冇用；管理向清單（`api-keys` / `users` / `groups`）先出 `Page` envelope。
 
