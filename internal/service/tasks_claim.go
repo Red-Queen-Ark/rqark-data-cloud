@@ -48,18 +48,24 @@ type ClaimedRun struct {
 // dueTasksSQL selects the tasks a tick may claim, oldest due first.
 //
 // The task row is locked with SKIP LOCKED, so two workers ticking at once take
-// different tasks instead of contending for the same one. The two NOT EXISTS
-// clauses are the concurrency rules: one task never has two running runs, and
-// one user never has two running runs, which keeps a slow agent from piling up a
-// backlog.
+// different tasks instead of contending for the same one. The NOT EXISTS clause
+// is the one concurrency rule: a task never has two running runs, so a slow run
+// is never doubled up on. Two tasks of one user may run together — a user who
+// wants a morning brief and an hourly sweep does not want one to wait for the
+// other.
+//
+// A task that was switched off is never selected, whatever is pending on it: a
+// run_now request on a paused task is dropped rather than dispatched. Without
+// that, a paused task carries a NULL next_run_at and the claim would have
+// nothing to name the slot by.
 const dueTasksSQL = `
 SELECT t.* FROM tasks t
-WHERE (
-        (t.enabled = true AND t.next_run_at IS NOT NULL AND t.next_run_at <= ?)
+WHERE t.enabled = true
+  AND (
+        (t.next_run_at IS NOT NULL AND t.next_run_at <= ?)
      OR t.run_now_requested_at IS NOT NULL
   )
   AND NOT EXISTS (SELECT 1 FROM task_runs r WHERE r.task_id = t.id AND r.status = 'running')
-  AND NOT EXISTS (SELECT 1 FROM task_runs r WHERE r.user_id = t.user_id AND r.status = 'running')
 ORDER BY COALESCE(t.run_now_requested_at, t.next_run_at), t.id
 LIMIT ?
 FOR UPDATE SKIP LOCKED`
@@ -94,19 +100,6 @@ func ClaimTaskRuns(ctx context.Context, limit int) ([]ClaimedRun, error) {
 		}
 
 		for i := range due {
-			// The per-user rule is evaluated once for the whole select, so two
-			// tasks of one user due in the same tick both pass it. The run this
-			// loop is about to write is not visible to that select, so the rule
-			// is applied again here; the second task simply stays due for the
-			// next tick, untouched.
-			busy, err := userHasRunningRun(tx, due[i].UserID)
-			if err != nil {
-				return err
-			}
-			if busy {
-				continue
-			}
-
 			run, ok, err := claimOne(ctx, tx, &due[i], now)
 			if err != nil {
 				return err
@@ -137,19 +130,6 @@ func sweepStaleRuns(tx *gorm.DB, now time.Time) error {
 		}).Error
 }
 
-// userHasRunningRun reports whether userID already has a run in flight. It reads
-// inside the claim transaction, so a run written earlier in the same claim is
-// seen by the next task of that user.
-func userHasRunningRun(tx *gorm.DB, userID uuid.UUID) (bool, error) {
-	var count int64
-	if err := tx.Model(&repository.TaskRun{}).
-		Where("user_id = ? AND status = ?", userID, repository.TaskRunRunning).
-		Count(&count).Error; err != nil {
-		return false, err
-	}
-	return count > 0, nil
-}
-
 // claimOne records and prepares one due task. It reports false when the attempt
 // produced no run to dispatch, which happens for an at task that came due too
 // late and for a run that lost the slot to an existing row.
@@ -159,11 +139,26 @@ func claimOne(ctx context.Context, tx *gorm.DB, task *repository.Task, now time.
 	// the schedule already has. Moving it would drift an every task's phase and
 	// skip a cron task's next fire.
 	manual := task.RunNowRequestedAt != nil
-	slot := *task.NextRunAt
 	trigger := repository.TaskRunTriggerSchedule
-	if manual {
+	slot := now.Truncate(time.Second)
+	switch {
+	case manual:
 		slot = *task.RunNowRequestedAt
 		trigger = repository.TaskRunTriggerManual
+	case task.NextRunAt != nil:
+		slot = *task.NextRunAt
+	default:
+		// An enabled task always carries a next_run_at, so this is a row that broke
+		// that rule. Dereferencing nil would panic every claim and stop the whole
+		// dispatcher, so it is switched off instead and left to the user: a task
+		// with no schedule can never become due, and leaving it selected would
+		// spend one of the claim's slots on it every tick.
+		log.Printf("service: task %s is enabled without a next_run_at, disabling it", task.ID)
+		if err := tx.Model(&repository.Task{}).Where("id = ?", task.ID).
+			Updates(map[string]any{"enabled": false, "run_now_requested_at": nil}).Error; err != nil {
+			return nil, false, err
+		}
+		return nil, false, nil
 	}
 
 	// An at task whose instant is older than the grace window is not dispatched:

@@ -168,8 +168,12 @@ func UpdateTask(ctx context.Context, userID, id uuid.UUID, in UpdateTaskInput) (
 
 	timezoneChanged := false
 	if in.Timezone != nil {
-		task.Timezone = timezoneName(*in.Timezone)
-		timezoneChanged = true
+		zone := timezoneName(*in.Timezone)
+		// Rewriting the zone a task already carries would re-phase an every task
+		// and move a cron task's next fire, which is not what a client that sends
+		// the whole object means.
+		timezoneChanged = zone != task.Timezone
+		task.Timezone = zone
 	}
 	location, err := LoadTaskLocation(task.Timezone)
 	if err != nil {
@@ -200,10 +204,30 @@ func UpdateTask(ctx context.Context, userID, id uuid.UUID, in UpdateTaskInput) (
 		task.NextRunAt = &next
 	}
 
-	if err := repository.SaveTask(ctx, config.DB, task); err != nil {
+	fields := map[string]any{
+		"name":          task.Name,
+		"prompt":        task.Prompt,
+		"agent_name":    task.AgentName,
+		"provider_name": task.ProviderName,
+		"timezone":      task.Timezone,
+		"enabled":       task.Enabled,
+		"next_run_at":   task.NextRunAt,
+		"schedule_kind": task.ScheduleKind,
+		"run_at":        task.RunAt,
+		"every_seconds": task.EverySeconds,
+		"cron_expr":     task.CronExpr,
+	}
+	if !task.Enabled {
+		// A paused task has no schedule and no pending manual run: both would be
+		// honoured the moment it was enabled again, which is not what pausing it
+		// asked for.
+		fields["run_now_requested_at"] = nil
+	}
+
+	if err := repository.UpdateTaskFields(ctx, config.DB, userID, id, fields); err != nil {
 		return nil, mapWriteError(err)
 	}
-	return task, nil
+	return repository.GetTaskByID(ctx, config.DB, userID, id)
 }
 
 // RunTaskNow asks for one extra run of a task, at the next tick.
@@ -216,6 +240,11 @@ func UpdateTask(ctx context.Context, userID, id uuid.UUID, in UpdateTaskInput) (
 // A disabled task is refused: its schedule is off, and running it once would be
 // a surprise rather than a shortcut. A task that is already running is refused
 // too, which is the same one-run-at-a-time rule the dispatcher enforces.
+//
+// The request is written with the guards in the statement itself, so a claim
+// committing between the read and the write cannot revive a task paused in the
+// meantime or queue a second request behind a run that just started. The checks
+// above are only there to answer with the reason; the write is what decides.
 func RunTaskNow(ctx context.Context, userID, id uuid.UUID) (*repository.Task, error) {
 	task, err := repository.GetTaskByID(ctx, config.DB, userID, id)
 	if err != nil {
@@ -224,21 +253,32 @@ func RunTaskNow(ctx context.Context, userID, id uuid.UUID) (*repository.Task, er
 	if !task.Enabled {
 		return nil, ErrTaskDisabled
 	}
+	if task.RunNowRequestedAt == nil {
+		if _, err := repository.RequestRunNow(ctx, config.DB, userID, id, time.Now().UTC()); err != nil {
+			return nil, err
+		}
+	}
 
-	running, err := repository.HasRunningRun(ctx, config.DB, id)
+	// Re-read so the answer is what was stored, and so a refusal the write hit
+	// (a run that started meanwhile) is reported rather than acknowledged.
+	stored, err := repository.GetTaskByID(ctx, config.DB, userID, id)
 	if err != nil {
 		return nil, err
 	}
-	if running {
-		return nil, ErrTaskRunInFlight
+	if !stored.Enabled {
+		return nil, ErrTaskDisabled
 	}
-
-	now := time.Now().UTC()
-	task.RunNowRequestedAt = &now
-	if err := repository.SaveTask(ctx, config.DB, task); err != nil {
-		return nil, mapWriteError(err)
+	if stored.RunNowRequestedAt == nil {
+		running, err := repository.HasRunningRun(ctx, config.DB, id)
+		if err != nil {
+			return nil, err
+		}
+		if running {
+			return nil, ErrTaskRunInFlight
+		}
+		return nil, &ValidationError{Message: "the run request was not recorded."}
 	}
-	return task, nil
+	return stored, nil
 }
 
 // DeleteTask removes one of userID's tasks, its runs included.

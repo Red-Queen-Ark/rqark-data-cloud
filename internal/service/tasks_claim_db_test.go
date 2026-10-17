@@ -3,11 +3,14 @@ package service
 import (
 	"context"
 	"errors"
+	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"gorm.io/gorm"
 
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
@@ -15,19 +18,31 @@ import (
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
 )
 
-// claimTestDB opens the shared test database with a clean task slate.
+// claimTestDB opens a database the claim tests may empty.
 //
 // The claim is global by design — it walks every user's due tasks — so a test
-// that wants to see exactly its own task has to start from an empty table. Runs
-// and tasks are truncated, and the sessions a run opened are removed with them;
-// nothing else is touched.
+// that wants to see exactly its own task has to start from an empty table. That
+// makes it destructive, and it is only ever pointed at a database of its own:
+// the DSN has to name a database ending in _test, otherwise these tests skip
+// rather than wipe whatever the developer is working with.
+//
+// Every other task test is safe on a shared database, because it only ever
+// writes rows belonging to the throwaway users it creates. This one cannot be,
+// so it refuses to run where it could do damage.
 func claimTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
+	if !strings.HasSuffix(testDatabaseName(t), "_test") {
+		t.Skip("the claim tests empty the task tables, so they only run against a database whose name ends in _test")
+	}
+
 	db := taskWriteDB(t)
+	if err := db.AutoMigrate(&repository.Session{}); err != nil {
+		t.Fatalf("automigrate sessions: %v", err)
+	}
 	for _, statement := range []string{
 		"DELETE FROM task_runs",
-		"DELETE FROM tasks",
+		"DELETE FROM tasks WHERE user_id IN (SELECT id FROM users WHERE username LIKE 'tasktest-%')",
 		"DELETE FROM sessions WHERE source = 'TASK'",
 	} {
 		if err := db.Exec(statement).Error; err != nil {
@@ -35,6 +50,18 @@ func claimTestDB(t *testing.T) *gorm.DB {
 		}
 	}
 	return db
+}
+
+// testDatabaseName reads the database name out of TEST_POSTGRES_DSN, so a test
+// can decide whether it is allowed to empty that database.
+func testDatabaseName(t *testing.T) string {
+	t.Helper()
+
+	config_, err := pgx.ParseConfig(os.Getenv("TEST_POSTGRES_DSN"))
+	if err != nil {
+		t.Fatalf("cannot parse TEST_POSTGRES_DSN: %v", err)
+	}
+	return config_.Database
 }
 
 // claimTestConfig sets the run clock the claim reads, and restores it afterwards
@@ -305,10 +332,11 @@ func TestClaimAdvancesPastASlotThatAlreadyHasARun(t *testing.T) {
 	}
 }
 
-// TestClaimKeepsOneRunPerUser covers the per-user rule: two due tasks of one user
-// do not start together, because the second tick would otherwise pile a second
-// agent onto the same sandbox.
-func TestClaimKeepsOneRunPerUser(t *testing.T) {
+// TestClaimRunsOneUsersTasksTogether covers the rule the other way round: two
+// due tasks of one user are both claimed, so a morning brief does not wait for an
+// hourly sweep. They run in the same sandbox, which is the user's own, and the
+// older one is claimed first.
+func TestClaimRunsOneUsersTasksTogether(t *testing.T) {
 	db := claimTestDB(t)
 	owner := testTaskOwner(t, db)
 	newTaskTargets(t, db, owner)
@@ -321,11 +349,68 @@ func TestClaimKeepsOneRunPerUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ClaimTaskRuns: %v", err)
 	}
-	if len(claimed) != 1 {
-		t.Fatalf("claimed %d runs, want 1 for a user with one running run", len(claimed))
+	if len(claimed) != 2 {
+		t.Fatalf("claimed %d runs, want both due tasks of one user", len(claimed))
 	}
 	if claimed[0].Task.Name != "first" {
-		t.Errorf("claimed %q, want the older due task", claimed[0].Task.Name)
+		t.Errorf("claimed %q first, want the older due task", claimed[0].Task.Name)
+	}
+}
+
+// TestClaimNeverDoublesOneTask covers the rule that survived the per-user change:
+// a task with a run in flight is not claimed again, however many workers tick.
+func TestClaimNeverDoublesOneTask(t *testing.T) {
+	db := claimTestDB(t)
+	owner := testTaskOwner(t, db)
+	newTaskTargets(t, db, owner)
+	claimTestConfig(t, 5*time.Minute, 12*time.Minute)
+
+	task := newDueTask(t, db, owner, "hourly", repository.TaskScheduleEvery, time.Now().Add(-time.Minute))
+
+	if claimed, err := ClaimTaskRuns(context.Background(), 1); err != nil || len(claimed) != 1 {
+		t.Fatalf("first claim = %d runs, %v; want 1, nil", len(claimed), err)
+	}
+
+	// Make it due again while the run is still running.
+	soon := time.Now().Add(-time.Minute).UTC()
+	if err := db.Model(&repository.Task{}).Where("id = ?", task.ID).Update("next_run_at", soon).Error; err != nil {
+		t.Fatalf("make the task due again: %v", err)
+	}
+
+	claimed, err := ClaimTaskRuns(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("second claim: %v", err)
+	}
+	if len(claimed) != 0 {
+		t.Errorf("claimed %d runs while one was still running, want 0", len(claimed))
+	}
+}
+
+// TestClaimRefusesAPausedTaskWithAPendingRun covers a paused task that still
+// carries a manual request: it is not dispatched, and nothing dereferences the
+// next_run_at it no longer has.
+func TestClaimRefusesAPausedTaskWithAPendingRun(t *testing.T) {
+	db := claimTestDB(t)
+	owner := testTaskOwner(t, db)
+	newTaskTargets(t, db, owner)
+	claimTestConfig(t, 5*time.Minute, 12*time.Minute)
+
+	task := newDueTask(t, db, owner, "paused", repository.TaskScheduleEvery, time.Now().Add(time.Hour))
+	now := time.Now().UTC()
+	if err := db.Model(&repository.Task{}).Where("id = ?", task.ID).Updates(map[string]any{
+		"enabled":              false,
+		"next_run_at":          nil,
+		"run_now_requested_at": now,
+	}).Error; err != nil {
+		t.Fatalf("pause the task: %v", err)
+	}
+
+	claimed, err := ClaimTaskRuns(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("ClaimTaskRuns: %v", err)
+	}
+	if len(claimed) != 0 {
+		t.Errorf("claimed %d runs for a paused task, want 0", len(claimed))
 	}
 }
 

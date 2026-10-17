@@ -51,7 +51,12 @@ type Task struct {
 	Timezone string `gorm:"type:varchar(64);not null;default:'UTC'"`
 	// Enabled gates the dispatcher. The composite index serves the scan for due
 	// tasks, which filters on both columns.
-	Enabled bool `gorm:"not null;default:true;index:idx_tasks_enabled_next_run_at,priority:1"`
+	//
+	// It carries no `default` tag on purpose: GORM substitutes a default for the
+	// zero value on create and writes that back into the struct, so `default:true`
+	// would silently turn a task the caller asked to be paused into an enabled one
+	// with no next_run_at — a task nothing would ever pick up.
+	Enabled bool `gorm:"not null;index:idx_tasks_enabled_next_run_at,priority:1"`
 	// ScheduleKind selects which of the three schedule columns is set. The CHECK
 	// constraint pins the shapes, so a row cannot carry two schedules at once.
 	ScheduleKind string `gorm:"type:varchar(16);not null;check:chk_tasks_schedule_kind,(schedule_kind = 'at' AND run_at IS NOT NULL AND every_seconds IS NULL AND cron_expr IS NULL) OR (schedule_kind = 'every' AND run_at IS NULL AND every_seconds >= 60 AND cron_expr IS NULL) OR (schedule_kind = 'cron' AND run_at IS NULL AND every_seconds IS NULL AND cron_expr IS NOT NULL)"`
@@ -114,6 +119,46 @@ func CreateTask(ctx context.Context, db *gorm.DB, task *Task) error {
 // SaveTask writes every column of task.
 func SaveTask(ctx context.Context, db *gorm.DB, task *Task) error {
 	return db.WithContext(ctx).Save(task).Error
+}
+
+// UpdateTaskFields writes only the named columns of one task.
+//
+// The dispatcher writes next_run_at and run_now_requested_at from the claim
+// transaction, so a request path that saved the whole row would write back the
+// values it read before that transaction committed: a slot the claim had already
+// used, a manual request the claim had already honoured, or an enabled flag set
+// after the user paused the task. A targeted update leaves every column the
+// caller did not name alone.
+func UpdateTaskFields(ctx context.Context, db *gorm.DB, userID, id uuid.UUID, fields map[string]any) error {
+	result := db.WithContext(ctx).
+		Model(&Task{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Updates(fields)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrTaskNotFound
+	}
+	return nil
+}
+
+// RequestRunNow records a manual run request on one task, in a single statement.
+//
+// The guards are part of the update rather than a read followed by a write, so a
+// claim that commits in between cannot be undone: a task paused meanwhile is not
+// revived, and a task that started running meanwhile does not get a second
+// request queued behind the one already running.
+func RequestRunNow(ctx context.Context, db *gorm.DB, userID, id uuid.UUID, at time.Time) (bool, error) {
+	result := db.WithContext(ctx).
+		Model(&Task{}).
+		Where("id = ? AND user_id = ? AND enabled = ?", id, userID, true).
+		Where("NOT EXISTS (SELECT 1 FROM task_runs r WHERE r.task_id = tasks.id AND r.status = ?)", TaskRunRunning).
+		Update("run_now_requested_at", at)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }
 
 // DeleteTask removes one of userID's tasks and, through the foreign key, the

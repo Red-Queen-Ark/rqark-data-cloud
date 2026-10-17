@@ -47,7 +47,7 @@ OR (schedule_kind = 'cron'  AND run_at IS NULL AND every_seconds IS NULL AND cro
 |---|---|---|
 | `id` | UUID | PK |
 | `task_id` | UUID | FK → `tasks.id`，`ON DELETE CASCADE` |
-| `user_id` | UUID | 重複 task 嘅擁有者，令 per-user 限制唔使 join |
+| `user_id` | UUID | 重複 task 嘅擁有者，令 claim 唔使 join `tasks` 就查到該用戶嘅 run |
 | `status` | string(16) | `running` / `ok` / `error` / `cancelled` / `skipped` / `lost` |
 | `trigger` | string(16) | `schedule` / `manual` |
 | `scheduled_at` | timestamptz | 呢條 run 屬於邊個 slot；`manual` 用請求時間 |
@@ -63,6 +63,8 @@ OR (schedule_kind = 'cron'  AND run_at IS NULL AND every_seconds IS NULL AND cro
 | `idx_task_runs_task_id_scheduled_at` | `(task_id, scheduled_at)` UNIQUE | **去重**：同一個 slot 最多一條 run |
 | `idx_task_runs_task_id_status` | `(task_id, status)` | 查 task 有冇 running |
 | `idx_task_runs_status_started_at` | `(status, started_at)` | 掃 stale run |
+
+冇 per-user index：同一用戶可以同時跑多個 task（見 I3）。
 
 `error` 嘅值：
 
@@ -131,6 +133,10 @@ OR (schedule_kind = 'cron'  AND run_at IS NULL AND every_seconds IS NULL AND cro
 
 claim 一次做齊：掃 stale → 揀 due（`FOR UPDATE SKIP LOCKED`）→ 建 session（`source='TASK'`）→ insert run → 推進 `next_run_at` → 簽 run token。全程一個 transaction。
 
+揀 due 嘅條件：`enabled = true` **且**（`next_run_at <= now` **或** 有 `run_now_requested_at`），並且該 task 冇 `running` run。暫停咗嘅 task 一律唔會被揀，即使身上有 pending 嘅 `run_now`。
+
+同一用戶嘅多個 task 會喺同一次 claim 一齊出，全部共用該用戶嘅 sandbox（`rqark-user-{slug}-workspace`）。呢個係刻意嘅：沙盒係用戶嘅，唔係 run 嘅。代價係兩個 run 同時寫 `/workspace` 會互相踩，所以 runner 唔會喺 run 完之後 stop container。
+
 claim 回嘅 token 係 run-scoped：`scope='run'`，只可以打自己 `session_id` 嘅 `GET` / `PUT /api/sessions/{uuid}` 同 `GET /api/sessions/{uuid}/messages`，其餘一律 `403`。
 
 # 不變式
@@ -139,7 +145,7 @@ claim 回嘅 token 係 run-scoped：`scope='run'`，只可以打自己 `session_
 |---|---|---|
 | I1 | `next_run_at` **只**喺 claim-insert 成功嘅同一 transaction 內推進 | backlog 永不累積 → fire-once |
 | I2 | claim 成功 = 即時 dispatch，`started_at` 由 claim 寫入 | 「running」真係 running |
-| I3 | 一個 task 同時最多一條 `running`；一個用戶同時最多一條 `running` | 短週期撞長 run 只阻住、唔累積 |
+| I3 | 一個 task 同時最多一條 `running`；**同一用戶可以有多個 task 同時跑** | 短週期撞長 run 只阻住該 task、唔累積；用戶想兩個 task 一齊跑就跑 |
 | I4 | finalize 只准 `running` → 終態 | 遲到／重複 PATCH 被拒 |
 
 # Config
