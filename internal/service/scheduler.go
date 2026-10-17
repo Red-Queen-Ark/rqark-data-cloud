@@ -3,6 +3,12 @@ package service
 import (
 	"strings"
 	"time"
+	// The IANA database is embedded rather than read from the host. The server
+	// image is alpine, which ships no /usr/share/zoneinfo, so without this every
+	// zone name is rejected — Asia/Hong_Kong included — and only UTC resolves.
+	// Embedding it also means the answer cannot differ between a developer
+	// machine and a container.
+	_ "time/tzdata"
 
 	"github.com/robfig/cron/v3"
 )

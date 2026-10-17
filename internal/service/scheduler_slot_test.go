@@ -98,3 +98,21 @@ func TestNextEverySlotHandlesAnAwkwardGap(t *testing.T) {
 		t.Errorf("NextEverySlot = %s, want %s", next, want)
 	}
 }
+
+// TestATimezoneResolvesInTheServerImage covers the failure a host-only test
+// cannot see: the server runs on alpine, which ships no zoneinfo, so a zone name
+// only resolves because the database is compiled into the binary. A test that
+// runs on a developer machine passes either way; this one at least pins the
+// behaviour the container depends on.
+func TestATimezoneResolvesInTheServerImage(t *testing.T) {
+	for _, name := range []string{"Asia/Hong_Kong", "America/New_York", "Europe/London", "UTC"} {
+		location, err := LoadTaskLocation(name)
+		if err != nil {
+			t.Errorf("LoadTaskLocation(%q) = %v, want a location", name, err)
+			continue
+		}
+		if location.String() != name {
+			t.Errorf("LoadTaskLocation(%q) = %q", name, location)
+		}
+	}
+}
