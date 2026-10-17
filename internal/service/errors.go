@@ -33,6 +33,9 @@ var (
 	// ErrTaskProviderAmbiguous is returned when a task names a provider that
 	// more than one provider the user may use carries.
 	ErrTaskProviderAmbiguous = errors.New("service: provider name is ambiguous")
+	// ErrTaskRunAlreadyFinal is returned when a finalize call reaches a run that
+	// is no longer running, so its result was already recorded by someone else.
+	ErrTaskRunAlreadyFinal = errors.New("service: task run is already finalized")
 	// ErrSessionConflict is returned when a create would reuse the id of a
 	// session that already exists. The app owns session ids, so a repeat means
 	// the app and the cloud disagree about a session rather than a fresh one.

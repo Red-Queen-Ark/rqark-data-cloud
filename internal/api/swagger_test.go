@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -54,6 +55,30 @@ func TestServedSpecDoesNotPinItsOwnAddress(t *testing.T) {
 	}
 	if document["basePath"] != "/api" {
 		t.Errorf("basePath = %v, want /api", document["basePath"])
+	}
+}
+
+// TestServedSpecCarriesNoInternalRoute covers the separation the claim and
+// finalize endpoints depend on: they are guarded by a shared secret rather than
+// by a user, so they are published nowhere. swag walks internal/api, and the
+// internal package sits inside it, so only the generator's exclude keeps them
+// out; this asserts the exclude is still doing its job.
+func TestServedSpecCarriesNoInternalRoute(t *testing.T) {
+	document := serveSpec(t, "/api/swagger.json")
+
+	paths, ok := document["paths"].(map[string]any)
+	if !ok {
+		t.Fatal("the served document has no paths")
+	}
+	for path := range paths {
+		if strings.Contains(path, "internal") {
+			t.Errorf("the served document carries %q, want the internal routes left out", path)
+		}
+	}
+
+	// The public task routes, which sit next to them, must still be there.
+	if _, present := paths["/tasks"]; !present {
+		t.Error("the served document lost the public task routes")
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	internalapi "gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/api/internal"
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/middlewares"
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
@@ -30,6 +31,9 @@ func APIRouter(r *gin.Engine) {
 	UserConfigsRouter(r)
 	AgentDefaultsRouter(r)
 	TasksRouter(r)
+	// The internal routes live in their own package so that swag, which walks
+	// this one, never pulls them into the public specification.
+	internalapi.Router(r, config.InternalToken)
 }
 
 // LoadUser loads the user an access token names. It is the database hook the

@@ -12,7 +12,7 @@ import (
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
 )
 
-//go:generate go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g main.go -d .,../../internal/api,../../internal/utils,../../internal/repository -o ../../docs --parseInternal
+//go:generate go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g main.go -d .,../../internal/api,../../internal/utils,../../internal/repository -o ../../docs --parseInternal --exclude ../../internal/api/internal
 
 // @title						rqark-data-cloud
 // @version					1.0
