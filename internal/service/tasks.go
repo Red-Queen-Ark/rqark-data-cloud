@@ -363,9 +363,9 @@ func validateTaskSchedule(in TaskScheduleInput, location *time.Location) (schedu
 }
 
 // nextRunAt works out the first instant a schedule fires at, counting from now.
-// An "every" task counts from now rather than from its previous slot, so a
-// backlog is never replayed: a task that missed its turn simply waits one more
-// gap.
+// An "every" task takes the first slot of its grid after now, so a backlog is
+// never replayed and the task keeps its place on the grid rather than drifting
+// by whatever the tick happened to be.
 //
 // An "at" instant further in the past than TASK_AT_GRACE is refused rather than
 // stored: the dispatcher would only record it as missed and disable the task
@@ -379,7 +379,7 @@ func nextRunAt(schedule scheduleColumns, location *time.Location, now time.Time)
 		}
 		return *schedule.runAt, nil
 	case repository.TaskScheduleEvery:
-		return now.Add(time.Duration(*schedule.everySeconds) * time.Second).UTC(), nil
+		return NextEverySlot(now, time.Duration(*schedule.everySeconds)*time.Second), nil
 	case repository.TaskScheduleCron:
 		compiled, err := ParseTaskCron(*schedule.cronExpr, location)
 		if err != nil {

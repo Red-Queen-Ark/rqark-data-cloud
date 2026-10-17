@@ -58,6 +58,11 @@ type ClaimedRun struct {
 // run_now request on a paused task is dropped rather than dispatched. Without
 // that, a paused task carries a NULL next_run_at and the claim would have
 // nothing to name the slot by.
+//
+// An account that is not active never runs anything. Deactivating an account
+// leaves its tasks alone rather than switching them off, so that reactivating it
+// resumes them; the check is here because the dispatcher is the only thing that
+// would otherwise not care.
 const dueTasksSQL = `
 SELECT t.* FROM tasks t
 WHERE t.enabled = true
@@ -65,6 +70,7 @@ WHERE t.enabled = true
         (t.next_run_at IS NOT NULL AND t.next_run_at <= ?)
      OR t.run_now_requested_at IS NOT NULL
   )
+  AND EXISTS (SELECT 1 FROM users u WHERE u.id = t.user_id AND u.is_active = true)
   AND NOT EXISTS (SELECT 1 FROM task_runs r WHERE r.task_id = t.id AND r.status = 'running')
 ORDER BY COALESCE(t.run_now_requested_at, t.next_run_at), t.id
 LIMIT ?
@@ -283,9 +289,9 @@ func recordFinishedRun(tx *gorm.DB, task *repository.Task, slot time.Time, trigg
 // only writer of next_run_at on a claimed task, and it runs in the claim
 // transaction, so a task is never due twice for one slot.
 //
-// An at task has no second slot, so it is switched off. An every task counts
-// from now rather than from the slot it missed, which is what keeps a backlog
-// from accumulating. A cron expression that never fires again also switches the
+// An at task has no second slot, so it is switched off. An every task takes the
+// first slot of its grid after now, which is what keeps a backlog from
+// accumulating and keeps the task on the minute rather than drifting. A cron expression that never fires again also switches the
 // task off rather than leaving it due forever.
 func advanceNextRunAt(tx *gorm.DB, task *repository.Task, now time.Time) error {
 	updates := map[string]any{}
@@ -301,7 +307,7 @@ func advanceNextRunAt(tx *gorm.DB, task *repository.Task, now time.Time) error {
 			updates["next_run_at"] = nil
 			break
 		}
-		updates["next_run_at"] = now.Add(time.Duration(*task.EverySeconds) * time.Second)
+		updates["next_run_at"] = NextEverySlot(now, time.Duration(*task.EverySeconds)*time.Second)
 
 	case repository.TaskScheduleCron:
 		next, err := nextCronForTask(task, now)

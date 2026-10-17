@@ -72,3 +72,29 @@ func NextCronRun(schedule cron.Schedule, now time.Time) (time.Time, error) {
 	}
 	return next, nil
 }
+
+// NextEverySlot returns the first instant strictly after now on the grid a gap
+// of every seconds defines.
+//
+// The grid is anchored at the Unix epoch rather than at the moment the task was
+// written, so two tasks with the same gap fire at the same instants and a gap
+// that divides an hour or a day lands on a whole minute, hour or day: a task
+// that repeats every 60 seconds fires exactly on each minute, and one that
+// repeats every hour fires on the hour.
+//
+// Counting from the moment a task happened to be claimed would let its phase
+// drift by a second or two on every tick, so a task meant to run at nine
+// o'clock would wander further from nine o'clock all day.
+func NextEverySlot(now time.Time, every time.Duration) time.Time {
+	step := int64(every / time.Second)
+	if step <= 0 {
+		step = 1
+	}
+
+	seconds := now.UTC().Truncate(time.Second).Unix()
+	remainder := seconds % step
+	if remainder < 0 {
+		remainder += step
+	}
+	return time.Unix(seconds-remainder+step, 0).UTC()
+}

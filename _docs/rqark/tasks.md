@@ -86,12 +86,19 @@ OR (schedule_kind = 'cron'  AND run_at IS NULL AND every_seconds IS NULL AND cro
 | `PUT` `enabled` false → true | 重算 |
 | `PUT` `enabled` true → false | `NULL` |
 | claim 一條 `at` run | `enabled = false`，`next_run_at = NULL` |
-| claim 一條 `every` run | `now + every_seconds`（**唔補跑**） |
+| claim 一條 `every` run | 該 gap 嘅 grid 上第一個 > `now` 嘅時刻（**唔補跑**） |
 | claim 一條 `cron` run | `Next(now)` |
 | `run_now` | **唔改** |
 | cron 五年內都唔會 fire（例如 `0 0 30 2 *`） | 寫入時 400；claim 時 disable |
 
-`every` 由 `now` 起計，唔係由上一格起計：miss 咗就係 miss，唔會累積 backlog。
+`every` 嘅 grid 由 Unix epoch 起算，所以 gap 整除一小時／一日就會落在整點：
+
+- `every_seconds = 60` → 每分鐘的 `:00`
+- `every_seconds = 3600` → 每小時的 `HH:00`
+- `every_seconds = 86400` → 每日 `00:00` UTC
+- `every_seconds = 90` → `:00`、`:01:30`、`:03:00`…
+
+`next_run_at` 一定係 grid 上**第一個仍在前方**嘅時刻，所以 miss 咗就係 miss，唔會累積 backlog，亦唔會因為 tick 遲一兩秒而越跑越偏。
 
 # API
 
@@ -133,7 +140,9 @@ OR (schedule_kind = 'cron'  AND run_at IS NULL AND every_seconds IS NULL AND cro
 
 claim 一次做齊：掃 stale → 揀 due（`FOR UPDATE SKIP LOCKED`）→ 建 session（`source='TASK'`）→ insert run → 推進 `next_run_at` → 簽 run token。全程一個 transaction。
 
-揀 due 嘅條件：`enabled = true` **且**（`next_run_at <= now` **或** 有 `run_now_requested_at`），並且該 task 冇 `running` run。暫停咗嘅 task 一律唔會被揀，即使身上有 pending 嘅 `run_now`。
+揀 due 嘅條件：`enabled = true` **且**（`next_run_at <= now` **或** 有 `run_now_requested_at`），並且該 task 冇 `running` run，同埋該用戶 `is_active = true`。暫停咗嘅 task 一律唔會被揀，即使身上有 pending 嘅 `run_now`。
+
+停用帳號唔會停佢啲 task（重新啟用時會照跑返），只係 claim 時跳過。所以停用期間 `next_run_at` 會停留喺過去，重新啟用後會補跑一格，之後即刻跳返上 grid。
 
 同一用戶嘅多個 task 會喺同一次 claim 一齊出，全部共用該用戶嘅 sandbox（`rqark-user-{slug}-workspace`）。呢個係刻意嘅：沙盒係用戶嘅，唔係 run 嘅。代價係兩個 run 同時寫 `/workspace` 會互相踩，所以 runner 唔會喺 run 完之後 stop container。
 

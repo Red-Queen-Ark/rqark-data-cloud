@@ -121,9 +121,10 @@ func TestCreateTaskStoresCronInTheTaskTimezone(t *testing.T) {
 	}
 }
 
-// TestCreateTaskCountsEveryGapFromNow covers the no-backlog rule for "every":
-// the next run is one gap after the write, whatever instant the client asks for.
-func TestCreateTaskCountsEveryGapFromNow(t *testing.T) {
+// TestCreateTaskPutsAnEveryTaskOnItsGrid covers the write side of the grid: the
+// first run is the next hour boundary, not an hour after the moment of the
+// write, so an hourly task never wanders off the hour.
+func TestCreateTaskPutsAnEveryTaskOnItsGrid(t *testing.T) {
 	db := taskWriteDB(t)
 	owner := testTaskOwner(t, db)
 	newTaskTargets(t, db, owner)
@@ -138,14 +139,18 @@ func TestCreateTaskCountsEveryGapFromNow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
-	after := time.Now()
 
 	if task.NextRunAt == nil {
 		t.Fatal("next_run_at = nil for an enabled every task")
 	}
-	low, high := before.Add(time.Hour), after.Add(time.Hour)
-	if task.NextRunAt.Before(low.Add(-time.Second)) || task.NextRunAt.After(high.Add(time.Second)) {
-		t.Errorf("next_run_at = %s, want within a second of now + 1h (%s to %s)", task.NextRunAt, low, high)
+	if minute, second := task.NextRunAt.Minute(), task.NextRunAt.Second(); minute != 0 || second != 0 {
+		t.Errorf("next_run_at = %s, want a whole hour", task.NextRunAt)
+	}
+	if !task.NextRunAt.After(before) {
+		t.Errorf("next_run_at = %s, want an instant still ahead", task.NextRunAt)
+	}
+	if task.NextRunAt.Sub(before) > time.Hour {
+		t.Errorf("next_run_at = %s, want at most an hour after %s", task.NextRunAt, before)
 	}
 	if task.RunAt != nil || task.CronExpr != nil {
 		t.Errorf("every task kept run_at %v or cron_expr %v", task.RunAt, task.CronExpr)
@@ -350,9 +355,10 @@ func TestUpdateTaskClearsAndRecomputesNextRun(t *testing.T) {
 	}
 }
 
-// TestUpdateTaskRecomputesAnEveryTaskFromNow covers the reschedule rule: a new
-// gap is counted from the write, not from the slot the old schedule had reached.
-func TestUpdateTaskRecomputesAnEveryTaskFromNow(t *testing.T) {
+// TestUpdateTaskRecomputesAnEveryTaskOnItsGrid covers the reschedule rule: a new
+// gap puts the task on the new grid, not on a slot carried over from the old one
+// and not relative to the moment of the write.
+func TestUpdateTaskRecomputesAnEveryTaskOnItsGrid(t *testing.T) {
 	db := taskWriteDB(t)
 	owner := testTaskOwner(t, db)
 	newTaskTargets(t, db, owner)
@@ -380,9 +386,17 @@ func TestUpdateTaskRecomputesAnEveryTaskFromNow(t *testing.T) {
 		t.Fatalf("UpdateTask: %v", err)
 	}
 
-	low, high := before.Add(time.Hour), time.Now().Add(time.Hour)
-	if updated.NextRunAt.Before(low.Add(-time.Second)) || updated.NextRunAt.After(high.Add(time.Second)) {
-		t.Errorf("next_run_at = %s, want within a second of now + 1h (%s to %s)", updated.NextRunAt, low, high)
+	if updated.NextRunAt == nil {
+		t.Fatal("next_run_at = nil after the reschedule")
+	}
+	if minute, second := updated.NextRunAt.Minute(), updated.NextRunAt.Second(); minute != 0 || second != 0 {
+		t.Errorf("next_run_at = %s, want a whole hour", updated.NextRunAt)
+	}
+	if !updated.NextRunAt.After(before) {
+		t.Errorf("next_run_at = %s, want an instant still ahead", updated.NextRunAt)
+	}
+	if updated.NextRunAt.Sub(before) > time.Hour {
+		t.Errorf("next_run_at = %s, want at most an hour after %s", updated.NextRunAt, before)
 	}
 }
 
