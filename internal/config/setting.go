@@ -21,6 +21,9 @@ var (
 	ResetPasswordURL string
 	AccessTokenTTL   time.Duration
 	RefreshTokenTTL  time.Duration
+	// TaskAtGrace is how late an "at" task may still be dispatched. A task whose
+	// instant passed longer ago than this is recorded as missed instead of run.
+	TaskAtGrace time.Duration
 )
 
 func init() {
@@ -38,6 +41,7 @@ func init() {
 	ResetPasswordURL = GetEnv("RESET_PASSWORD_URL", "")
 	AccessTokenTTL = 60 * time.Minute
 	RefreshTokenTTL = 720 * time.Hour
+	TaskAtGrace = GetEnvDuration("TASK_AT_GRACE", 300*time.Second)
 }
 
 func GetEnv(key, fallback string) string {
@@ -53,4 +57,14 @@ func GetEnvInt(key string, fallback int) int {
 		return fallback
 	}
 	return v
+}
+
+// GetEnvDuration reads a whole number of seconds from the environment. An unset,
+// empty, non-numeric or negative value falls back, the same way GetEnvInt does.
+func GetEnvDuration(key string, fallback time.Duration) time.Duration {
+	seconds, err := strconv.Atoi(GetEnv(key, ""))
+	if err != nil || seconds < 0 {
+		return fallback
+	}
+	return time.Duration(seconds) * time.Second
 }

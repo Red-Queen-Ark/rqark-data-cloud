@@ -24,6 +24,12 @@ const (
 	NotFound Code = "NOT_FOUND"
 	// Conflict is used when the request conflicts with the current state.
 	Conflict Code = "CONFLICT"
+	// AgentAmbiguous is used when a name matches more than one agent the caller
+	// may use.
+	AgentAmbiguous Code = "AGENT_AMBIGUOUS"
+	// ProviderAmbiguous is used when a name matches more than one provider the
+	// caller may use.
+	ProviderAmbiguous Code = "PROVIDER_AMBIGUOUS"
 	// LastSuperuser is used when an operation would leave no active superuser.
 	LastSuperuser Code = "LAST_SUPERUSER"
 	// Internal is used for unexpected server-side failures.
@@ -32,13 +38,15 @@ const (
 
 // statuses maps every allowed code to its HTTP status.
 var statuses = map[Code]int{
-	Unauthorized:  http.StatusUnauthorized,
-	Forbidden:     http.StatusForbidden,
-	BadRequest:    http.StatusBadRequest,
-	NotFound:      http.StatusNotFound,
-	Conflict:      http.StatusConflict,
-	LastSuperuser: http.StatusConflict,
-	Internal:      http.StatusInternalServerError,
+	Unauthorized:      http.StatusUnauthorized,
+	Forbidden:         http.StatusForbidden,
+	BadRequest:        http.StatusBadRequest,
+	NotFound:          http.StatusNotFound,
+	Conflict:          http.StatusConflict,
+	AgentAmbiguous:    http.StatusConflict,
+	ProviderAmbiguous: http.StatusConflict,
+	LastSuperuser:     http.StatusConflict,
+	Internal:          http.StatusInternalServerError,
 }
 
 // Error is a single error object.

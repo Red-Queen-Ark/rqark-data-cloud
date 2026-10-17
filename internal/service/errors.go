@@ -23,6 +23,16 @@ var (
 	// ErrAgentNameTaken is returned when a write would duplicate the name of an
 	// agent already owned by the same user.
 	ErrAgentNameTaken = errors.New("service: agent name already taken")
+	// ErrTaskNameTaken is returned when a write would duplicate the name of a
+	// task already owned by the same user.
+	ErrTaskNameTaken = errors.New("service: task name already taken")
+	// ErrTaskAgentAmbiguous is returned when a task names an agent that more
+	// than one agent the user may use carries, so the name alone does not say
+	// which one to run.
+	ErrTaskAgentAmbiguous = errors.New("service: agent name is ambiguous")
+	// ErrTaskProviderAmbiguous is returned when a task names a provider that
+	// more than one provider the user may use carries.
+	ErrTaskProviderAmbiguous = errors.New("service: provider name is ambiguous")
 	// ErrSessionConflict is returned when a create would reuse the id of a
 	// session that already exists. The app owns session ids, so a repeat means
 	// the app and the cloud disagree about a session rather than a fresh one.
@@ -94,6 +104,8 @@ func mapWriteError(err error) error {
 		return ErrGroupNameTaken
 	case "idx_agents_user_id_name":
 		return ErrAgentNameTaken
+	case "idx_tasks_user_id_name":
+		return ErrTaskNameTaken
 	case "sessions_pkey":
 		return ErrSessionConflict
 	default:

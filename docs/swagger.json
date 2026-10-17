@@ -2378,6 +2378,369 @@
                 }
             }
         },
+        "/tasks": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all of the caller's tasks ordered by name. Not paginated: a user has few of them.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "List tasks",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.TaskDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "The task belongs to the caller. schedule_kind selects the one schedule field the body may set: run_at for at, every_seconds (at least 60) for every, or cron_expr for cron, which is evaluated in timezone. agent_name and provider_name must each resolve to exactly one agent or provider the caller may use; a provider is addressed by its name, or by its model_name when it carries none. Answers 201 with a Location header pointing at the new task.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "Create a task",
+                "parameters": [
+                    {
+                        "description": "Task to create",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateTaskRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/api.TaskDTO"
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "URL of the created task"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks/{uuid}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one of the caller's tasks. Another user's task is reported as 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "Get a task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Task ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.TaskDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Every field is optional and a field that is absent is left untouched. A schedule_kind replaces the whole schedule, so send the one field that kind uses. next_run_at is recomputed when the schedule or timezone changes and when a disabled task is enabled again; a disabled task carries no next_run_at. Another user's task is reported as 404.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "Update a task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Task ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to change",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateTaskRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.TaskDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Hard delete of one of the caller's tasks, its runs included. Another user's task is reported as 404.",
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "Delete a task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Task ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks/{uuid}/runs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one page of the runs recorded for one of the caller's tasks, newest scheduled instant first. Paginated because runs grow without bound. Another user's task is reported as 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "List task runs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Task ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 20, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Rows to skip",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Page-api_TaskRunDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/user-config": {
             "get": {
                 "security": [
@@ -3382,6 +3745,49 @@
                 }
             }
         },
+        "api.CreateTaskRequest": {
+            "type": "object",
+            "properties": {
+                "agent_name": {
+                    "type": "string",
+                    "example": "Angel Holiday"
+                },
+                "cron_expr": {
+                    "type": "string",
+                    "example": "0 9 * * *"
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "every_seconds": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Morning brief"
+                },
+                "prompt": {
+                    "type": "string",
+                    "example": "Summarise my inbox."
+                },
+                "provider_name": {
+                    "type": "string",
+                    "example": "openai"
+                },
+                "run_at": {
+                    "type": "string"
+                },
+                "schedule_kind": {
+                    "type": "string",
+                    "example": "cron"
+                },
+                "timezone": {
+                    "type": "string",
+                    "example": "Asia/Hong_Kong"
+                }
+            }
+        },
         "api.CreateUserRequest": {
             "type": "object",
             "properties": {
@@ -3686,6 +4092,96 @@
                 }
             }
         },
+        "api.TaskDTO": {
+            "type": "object",
+            "properties": {
+                "agent_name": {
+                    "type": "string",
+                    "example": "Angel Holiday"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "cron_expr": {
+                    "type": "string",
+                    "example": "0 9 * * *"
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "every_seconds": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "8f0c2b7a-8a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Morning brief"
+                },
+                "next_run_at": {
+                    "type": "string"
+                },
+                "prompt": {
+                    "type": "string",
+                    "example": "Summarise my inbox."
+                },
+                "provider_name": {
+                    "type": "string",
+                    "example": "openai"
+                },
+                "run_at": {
+                    "type": "string"
+                },
+                "schedule_kind": {
+                    "type": "string",
+                    "example": "cron"
+                },
+                "timezone": {
+                    "type": "string",
+                    "example": "Asia/Hong_Kong"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.TaskRunDTO": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "finished_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "scheduled_at": {
+                    "type": "string"
+                },
+                "session_id": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "ok"
+                },
+                "task_id": {
+                    "type": "string"
+                },
+                "trigger": {
+                    "type": "string",
+                    "example": "schedule"
+                }
+            }
+        },
         "api.TokenPair": {
             "type": "object",
             "properties": {
@@ -3831,6 +4327,41 @@
                     "type": "string"
                 },
                 "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.UpdateTaskRequest": {
+            "type": "object",
+            "properties": {
+                "agent_name": {
+                    "type": "string"
+                },
+                "cron_expr": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "every_seconds": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "provider_name": {
+                    "type": "string"
+                },
+                "run_at": {
+                    "type": "string"
+                },
+                "schedule_kind": {
+                    "type": "string"
+                },
+                "timezone": {
                     "type": "string"
                 }
             }
@@ -3985,6 +4516,8 @@
                 "BAD_REQUEST",
                 "NOT_FOUND",
                 "CONFLICT",
+                "AGENT_AMBIGUOUS",
+                "PROVIDER_AMBIGUOUS",
                 "LAST_SUPERUSER",
                 "INTERNAL"
             ],
@@ -3994,6 +4527,8 @@
                 "BadRequest",
                 "NotFound",
                 "Conflict",
+                "AgentAmbiguous",
+                "ProviderAmbiguous",
                 "LastSuperuser",
                 "Internal"
             ]
@@ -4053,6 +4588,29 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/api.GroupDTO"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "offset": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 128
+                }
+            }
+        },
+        "utils.Page-api_TaskRunDTO": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.TaskRunDTO"
                     }
                 },
                 "limit": {
@@ -4145,6 +4703,10 @@
         {
             "description": "Per-user settings owned by the authenticated user.",
             "name": "user-config"
+        },
+        {
+            "description": "Scheduled tasks owned by the authenticated user.",
+            "name": "tasks"
         },
         {
             "description": "Default agent per session source owned by the authenticated user.",

@@ -183,6 +183,37 @@ definitions:
         example: 6b1c1f3a-1a1a-4a1a-8a1a-1a1a1a1a1a1a
         type: string
     type: object
+  api.CreateTaskRequest:
+    properties:
+      agent_name:
+        example: Angel Holiday
+        type: string
+      cron_expr:
+        example: 0 9 * * *
+        type: string
+      enabled:
+        example: true
+        type: boolean
+      every_seconds:
+        type: integer
+      name:
+        example: Morning brief
+        type: string
+      prompt:
+        example: Summarise my inbox.
+        type: string
+      provider_name:
+        example: openai
+        type: string
+      run_at:
+        type: string
+      schedule_kind:
+        example: cron
+        type: string
+      timezone:
+        example: Asia/Hong_Kong
+        type: string
+    type: object
   api.CreateUserRequest:
     properties:
       display_name:
@@ -399,6 +430,69 @@ definitions:
         example: 1
         type: integer
     type: object
+  api.TaskDTO:
+    properties:
+      agent_name:
+        example: Angel Holiday
+        type: string
+      created_at:
+        type: string
+      cron_expr:
+        example: 0 9 * * *
+        type: string
+      enabled:
+        example: true
+        type: boolean
+      every_seconds:
+        type: integer
+      id:
+        example: 8f0c2b7a-8a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      name:
+        example: Morning brief
+        type: string
+      next_run_at:
+        type: string
+      prompt:
+        example: Summarise my inbox.
+        type: string
+      provider_name:
+        example: openai
+        type: string
+      run_at:
+        type: string
+      schedule_kind:
+        example: cron
+        type: string
+      timezone:
+        example: Asia/Hong_Kong
+        type: string
+      updated_at:
+        type: string
+    type: object
+  api.TaskRunDTO:
+    properties:
+      error:
+        type: string
+      finished_at:
+        type: string
+      id:
+        type: string
+      scheduled_at:
+        type: string
+      session_id:
+        type: string
+      started_at:
+        type: string
+      status:
+        example: ok
+        type: string
+      task_id:
+        type: string
+      trigger:
+        example: schedule
+        type: string
+    type: object
   api.TokenPair:
     properties:
       access_token:
@@ -495,6 +589,29 @@ definitions:
       source:
         type: string
       title:
+        type: string
+    type: object
+  api.UpdateTaskRequest:
+    properties:
+      agent_name:
+        type: string
+      cron_expr:
+        type: string
+      enabled:
+        type: boolean
+      every_seconds:
+        type: integer
+      name:
+        type: string
+      prompt:
+        type: string
+      provider_name:
+        type: string
+      run_at:
+        type: string
+      schedule_kind:
+        type: string
+      timezone:
         type: string
     type: object
   api.UpdateUserRequest:
@@ -600,6 +717,8 @@ definitions:
     - BAD_REQUEST
     - NOT_FOUND
     - CONFLICT
+    - AGENT_AMBIGUOUS
+    - PROVIDER_AMBIGUOUS
     - LAST_SUPERUSER
     - INTERNAL
     type: string
@@ -609,6 +728,8 @@ definitions:
     - BadRequest
     - NotFound
     - Conflict
+    - AgentAmbiguous
+    - ProviderAmbiguous
     - LastSuperuser
     - Internal
   utils.Error:
@@ -647,6 +768,22 @@ definitions:
       items:
         items:
           $ref: '#/definitions/api.GroupDTO'
+        type: array
+      limit:
+        example: 20
+        type: integer
+      offset:
+        example: 0
+        type: integer
+      total:
+        example: 128
+        type: integer
+    type: object
+  utils.Page-api_TaskRunDTO:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.TaskRunDTO'
         type: array
       limit:
         example: 20
@@ -2283,6 +2420,254 @@ paths:
       summary: OpenAPI specification (YAML)
       tags:
       - swagger
+  /tasks:
+    get:
+      description: 'Returns all of the caller''s tasks ordered by name. Not paginated:
+        a user has few of them.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.TaskDTO'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List tasks
+      tags:
+      - tasks
+    post:
+      consumes:
+      - application/json
+      description: 'The task belongs to the caller. schedule_kind selects the one
+        schedule field the body may set: run_at for at, every_seconds (at least 60)
+        for every, or cron_expr for cron, which is evaluated in timezone. agent_name
+        and provider_name must each resolve to exactly one agent or provider the caller
+        may use; a provider is addressed by its name, or by its model_name when it
+        carries none. Answers 201 with a Location header pointing at the new task.'
+      parameters:
+      - description: Task to create
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: URL of the created task
+              type: string
+          schema:
+            $ref: '#/definitions/api.TaskDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a task
+      tags:
+      - tasks
+  /tasks/{uuid}:
+    delete:
+      description: Hard delete of one of the caller's tasks, its runs included. Another
+        user's task is reported as 404.
+      parameters:
+      - description: Task ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a task
+      tags:
+      - tasks
+    get:
+      description: Returns one of the caller's tasks. Another user's task is reported
+        as 404.
+      parameters:
+      - description: Task ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.TaskDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a task
+      tags:
+      - tasks
+    put:
+      consumes:
+      - application/json
+      description: Every field is optional and a field that is absent is left untouched.
+        A schedule_kind replaces the whole schedule, so send the one field that kind
+        uses. next_run_at is recomputed when the schedule or timezone changes and
+        when a disabled task is enabled again; a disabled task carries no next_run_at.
+        Another user's task is reported as 404.
+      parameters:
+      - description: Task ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Fields to change
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.TaskDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a task
+      tags:
+      - tasks
+  /tasks/{uuid}/runs:
+    get:
+      description: Returns one page of the runs recorded for one of the caller's tasks,
+        newest scheduled instant first. Paginated because runs grow without bound.
+        Another user's task is reported as 404.
+      parameters:
+      - description: Task ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Page size (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Rows to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Page-api_TaskRunDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List task runs
+      tags:
+      - tasks
   /user-config:
     get:
       description: 'Returns all of the caller''s config entries, ordered by key. Not
@@ -2805,5 +3190,7 @@ tags:
   name: api-keys
 - description: Per-user settings owned by the authenticated user.
   name: user-config
+- description: Scheduled tasks owned by the authenticated user.
+  name: tasks
 - description: Default agent per session source owned by the authenticated user.
   name: agent-defaults

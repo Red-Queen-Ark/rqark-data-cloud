@@ -15,6 +15,10 @@ import (
 // enumerated.
 var ErrProviderNotFound = errors.New("repository: provider not found")
 
+// ErrProviderAmbiguous is returned when a name resolves to more than one
+// provider the caller may use, so the name alone does not identify a provider.
+var ErrProviderAmbiguous = errors.New("repository: provider name is ambiguous")
+
 // UnsetProviderPriority is the priority a shared provider is served with to a
 // viewer that never ordered it. The owner's priority is the owner's own ordering:
 // serving it to another user would let one user's edit reorder everybody else's
@@ -83,6 +87,58 @@ func GetVisibleProviderByID(ctx context.Context, db *gorm.DB, userID, id uuid.UU
 // CreateProvider inserts a provider.
 func CreateProvider(ctx context.Context, db *gorm.DB, provider *Provider) error {
 	return db.WithContext(ctx).Create(provider).Error
+}
+
+// providerNameExpr is the name a provider is addressed by: its own name, or its
+// model_name when it carries none. rqark-core sets name = model_name as it loads
+// a provider, so the cloud resolves a name the same way: a caller should not have
+// to know which of the two columns the owner filled in.
+const providerNameExpr = "COALESCE(NULLIF(name, ''), model_name)"
+
+// FindProviderNamed resolves a name to the one provider userID may use that
+// answers to it. The caller's own provider wins over a shared one; two
+// candidates at the same level are reported as ErrProviderAmbiguous rather than
+// picked arbitrarily, and no candidate at all as ErrProviderNotFound.
+func FindProviderNamed(ctx context.Context, db *gorm.DB, userID uuid.UUID, name string) (*Provider, error) {
+	owned, err := findProvidersNamed(ctx, db, providerNameExpr+" = ? AND user_id = ?", name, userID)
+	if err != nil {
+		return nil, err
+	}
+	switch len(owned) {
+	case 1:
+		return &owned[0], nil
+	case 0:
+	default:
+		return nil, ErrProviderAmbiguous
+	}
+
+	shared, err := findProvidersNamed(ctx, db, providerNameExpr+" = ? AND user_id <> ? AND is_public = ?", name, userID, true)
+	if err != nil {
+		return nil, err
+	}
+	switch len(shared) {
+	case 1:
+		return &shared[0], nil
+	case 0:
+		return nil, ErrProviderNotFound
+	default:
+		return nil, ErrProviderAmbiguous
+	}
+}
+
+// findProvidersNamed runs one half of FindProviderNamed. The limit of two is
+// enough to tell "exactly one" from "more than one" without reading the rest.
+func findProvidersNamed(ctx context.Context, db *gorm.DB, where string, args ...any) ([]Provider, error) {
+	providers := []Provider{}
+	err := db.WithContext(ctx).
+		Where(where, args...).
+		Order("id").
+		Limit(2).
+		Find(&providers).Error
+	if err != nil {
+		return nil, err
+	}
+	return providers, nil
 }
 
 // SaveProvider writes every column of provider.

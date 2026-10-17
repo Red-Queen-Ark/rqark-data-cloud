@@ -29,6 +29,7 @@ func APIRouter(r *gin.Engine) {
 	APIKeysRouter(r)
 	UserConfigsRouter(r)
 	AgentDefaultsRouter(r)
+	TasksRouter(r)
 }
 
 // LoadUser loads the user an access token names. It is the database hook the
@@ -101,12 +102,20 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.Conflict, "Group name is already taken.")
 	case errors.Is(err, service.ErrAgentNameTaken):
 		utils.Abort(c, utils.Conflict, "Agent name is already taken.")
+	case errors.Is(err, service.ErrTaskNameTaken):
+		utils.Abort(c, utils.Conflict, "Task name is already taken.")
+	case errors.Is(err, service.ErrTaskAgentAmbiguous):
+		utils.Abort(c, utils.AgentAmbiguous, "More than one agent you can use carries that name.")
+	case errors.Is(err, service.ErrTaskProviderAmbiguous):
+		utils.Abort(c, utils.ProviderAmbiguous, "More than one provider you can use carries that name.")
 	case errors.Is(err, service.ErrAgentPublicForbidden):
 		utils.Abort(c, utils.Forbidden, "Only a superuser can share an agent.")
 	case errors.Is(err, service.ErrSessionConflict):
 		utils.Abort(c, utils.Conflict, "Session already exists.")
 	case errors.Is(err, repository.ErrAgentNotFound):
 		utils.Abort(c, utils.NotFound, "Agent not found.")
+	case errors.Is(err, repository.ErrTaskNotFound):
+		utils.Abort(c, utils.NotFound, "Task not found.")
 	case errors.Is(err, repository.ErrSessionNotFound):
 		utils.Abort(c, utils.NotFound, "Session not found.")
 	case errors.Is(err, repository.ErrUserNotFound):

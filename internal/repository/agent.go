@@ -13,6 +13,10 @@ import (
 // a lookup that names another user's agent, so agent ids cannot be enumerated.
 var ErrAgentNotFound = errors.New("repository: agent not found")
 
+// ErrAgentAmbiguous is returned when a name resolves to more than one agent the
+// caller may use, so the name alone does not identify an agent.
+var ErrAgentAmbiguous = errors.New("repository: agent name is ambiguous")
+
 // AgentPrompt is one entry of the agents.prompts column. The cloud keeps it
 // opaque: name is not checked against any prompt list, and params holds whatever
 // shape the prompt class in rqark-core defines. params is omitted when it is
@@ -83,6 +87,52 @@ func GetVisibleAgentByID(ctx context.Context, db *gorm.DB, userID, id uuid.UUID)
 // CreateAgent inserts an agent.
 func CreateAgent(ctx context.Context, db *gorm.DB, agent *Agent) error {
 	return db.WithContext(ctx).Create(agent).Error
+}
+
+// FindAgentNamed resolves a name to the one agent userID may use that carries
+// it. The caller's own agent wins over a shared one; two candidates at the same
+// level are reported as ErrAgentAmbiguous rather than picked arbitrarily, and no
+// candidate at all as ErrAgentNotFound.
+func FindAgentNamed(ctx context.Context, db *gorm.DB, userID uuid.UUID, name string) (*Agent, error) {
+	owned, err := findAgentsNamed(ctx, db, "user_id = ? AND name = ?", userID, name)
+	if err != nil {
+		return nil, err
+	}
+	switch len(owned) {
+	case 1:
+		return &owned[0], nil
+	case 0:
+	default:
+		return nil, ErrAgentAmbiguous
+	}
+
+	shared, err := findAgentsNamed(ctx, db, "user_id <> ? AND is_public = ? AND name = ?", userID, true, name)
+	if err != nil {
+		return nil, err
+	}
+	switch len(shared) {
+	case 1:
+		return &shared[0], nil
+	case 0:
+		return nil, ErrAgentNotFound
+	default:
+		return nil, ErrAgentAmbiguous
+	}
+}
+
+// findAgentsNamed runs one half of FindAgentNamed. The limit of two is enough to
+// tell "exactly one" from "more than one" without reading the rest.
+func findAgentsNamed(ctx context.Context, db *gorm.DB, where string, args ...any) ([]Agent, error) {
+	agents := []Agent{}
+	err := db.WithContext(ctx).
+		Where(where, args...).
+		Order("id").
+		Limit(2).
+		Find(&agents).Error
+	if err != nil {
+		return nil, err
+	}
+	return agents, nil
 }
 
 // SaveAgent writes every column of agent.
