@@ -122,6 +122,32 @@ definitions:
         example: engineering
         type: string
     type: object
+  api.CreateMemoryRequest:
+    properties:
+      agent_id:
+        example: 5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      content:
+        example: Boss prefers short replies.
+        type: string
+      keywords:
+        example:
+        - reply
+        - style
+        items:
+          type: string
+        type: array
+      occurred_at:
+        type: string
+      pinned:
+        example: false
+        type: boolean
+      source:
+        example: TUI
+        type: string
+      source_message:
+        type: object
+    type: object
   api.CreateProviderRequest:
     properties:
       api_base:
@@ -260,16 +286,112 @@ definitions:
         example: correct-horse-battery
         type: string
     type: object
+  api.MemoryDTO:
+    properties:
+      agent_id:
+        example: 5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      content:
+        example: Boss prefers short replies.
+        type: string
+      created_at:
+        type: string
+      hits:
+        example: 2
+        type: integer
+      id:
+        example: 7c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      keywords:
+        example:
+        - reply
+        - style
+        items:
+          type: string
+        type: array
+      last_used_at:
+        type: string
+      occurred_at:
+        type: string
+      pinned:
+        example: false
+        type: boolean
+      source:
+        example: TUI
+        type: string
+      updated_at:
+        type: string
+    type: object
+  api.MemoryDetailDTO:
+    properties:
+      agent_id:
+        example: 5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      content:
+        example: Boss prefers short replies.
+        type: string
+      created_at:
+        type: string
+      hits:
+        example: 2
+        type: integer
+      id:
+        example: 7c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      keywords:
+        example:
+        - reply
+        - style
+        items:
+          type: string
+        type: array
+      last_used_at:
+        type: string
+      occurred_at:
+        type: string
+      pinned:
+        example: false
+        type: boolean
+      source:
+        example: TUI
+        type: string
+      source_message:
+        type: object
+      updated_at:
+        type: string
+    type: object
+  api.MemoryPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.MemoryDTO'
+        type: array
+      next_cursor:
+        example: ""
+        type: string
+    type: object
   api.MessageResponse:
     properties:
       message:
         example: Password updated.
         type: string
     type: object
+  api.PatchMemoryRequest:
+    properties:
+      pinned:
+        example: true
+        type: boolean
+    type: object
   api.PingResponse:
     properties:
       message:
         example: pong
+        type: string
+    type: object
+  api.PromptMemoryRequest:
+    properties:
+      agent_id:
+        example: 5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
         type: string
     type: object
   api.ProviderDTO:
@@ -382,6 +504,24 @@ definitions:
         type: string
       token:
         example: 9f2c1a1b1c1d1e1f1a1b1c1d1e1f1a1b
+        type: string
+    type: object
+  api.SearchMemoryRequest:
+    properties:
+      agent_id:
+        example: 5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      at:
+        type: string
+      keywords:
+        example:
+        - reply
+        - style
+        items:
+          type: string
+        type: array
+      query:
+        example: reply
         type: string
     type: object
   api.SessionDTO:
@@ -717,6 +857,9 @@ definitions:
     - BAD_REQUEST
     - NOT_FOUND
     - CONFLICT
+    - INVALID_CONTENT
+    - IMMUTABLE_FIELD
+    - PINNED_LIMIT
     - AGENT_AMBIGUOUS
     - PROVIDER_AMBIGUOUS
     - LAST_SUPERUSER
@@ -728,6 +871,9 @@ definitions:
     - BadRequest
     - NotFound
     - Conflict
+    - InvalidContent
+    - ImmutableField
+    - PinnedLimit
     - AgentAmbiguous
     - ProviderAmbiguous
     - LastSuperuser
@@ -1850,6 +1996,335 @@ paths:
       summary: Add a group member
       tags:
       - groups
+  /memory:
+    get:
+      description: 'Returns the caller''s memory records ordered by occurred_at descending,
+        then id descending. agent_id narrows the page to one of the caller''s own
+        agents; leaving it out covers every agent. The page continues from cursor,
+        which is the next_cursor of the previous response. Rows are not ordered by
+        score: score depends on now(), so a cursor built from it would drift and repeat
+        or skip rows between pages.'
+      parameters:
+      - description: Agent ID
+        format: uuid
+        in: query
+        name: agent_id
+        type: string
+      - description: next_cursor of the previous page
+        in: query
+        name: cursor
+        type: string
+      - description: Page size, default 100, at most 100
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.MemoryPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List memory
+      tags:
+      - memory
+    post:
+      consumes:
+      - application/json
+      description: Appends one record to the caller's memory log. The agent must belong
+        to the caller. content is limited to 200 characters and keywords to 8 entries;
+        a longer value is rejected rather than truncated. occurred_at is required
+        because it drives the score decay. Pinning at creation counts against the
+        same limit of 5 pinned rows per (user, agent) pair.
+      parameters:
+      - description: Record to append
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateMemoryRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: URL of the created record
+              type: string
+          schema:
+            $ref: '#/definitions/api.MemoryDetailDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a memory record
+      tags:
+      - memory
+  /memory/{uuid}:
+    delete:
+      description: 'Hard delete of one of the caller''s records. This is how a wrong
+        record is corrected: the agent cannot edit or delete, so only the user removes
+        it.'
+      parameters:
+      - description: Memory ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a memory record
+      tags:
+      - memory
+    get:
+      description: Returns one of the caller's records, source_message included. A
+        record that does not exist or belongs to another pair is reported as 404.
+      parameters:
+      - description: Memory ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.MemoryDetailDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a memory record
+      tags:
+      - memory
+    patch:
+      consumes:
+      - application/json
+      description: The only field a caller may change is pinned; content, occurred_at
+        and every other field are immutable, and naming one answers 400 IMMUTABLE_FIELD.
+        A corrected record is written as a new row, not an edit. At most 5 rows of
+        one (user, agent) pair may be pinned.
+      parameters:
+      - description: Memory ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Pin state
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.PatchMemoryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.MemoryDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Pin or unpin a memory record
+      tags:
+      - memory
+  /memory/prompt:
+    post:
+      consumes:
+      - application/json
+      description: 'Returns at most 20 records of one of the caller''s agents, ordered
+        pinned first, then the decayed score, then recency. This is the one ordering
+        the injection prompt uses and search does not: pinned rows here are exempt
+        from decay. Every returned row counts as injected, recorded at most once per
+        UTC day.'
+      parameters:
+      - description: Agent to read
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.PromptMemoryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.MemoryDTO'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Memory injection prompt
+      tags:
+      - memory
+  /memory/search:
+    post:
+      consumes:
+      - application/json
+      description: Returns at most 20 records of one of the caller's agents. Rows
+        are ranked by how many of the requested keywords they carry, then by the decayed
+        score, then by recency; pinned is ignored here and only orders the injection
+        prompt. query matches content or a keyword as a substring. at bounds occurred_at
+        from above, so asking what the user wanted on a date means at plus keywords,
+        not at alone. Every returned row counts as one hit, recorded at most once
+        per UTC day.
+      parameters:
+      - description: Search terms
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.SearchMemoryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.MemoryDTO'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Search memory
+      tags:
+      - memory
   /ping:
     get:
       description: Returns pong. Does not touch PostgreSQL or Redis.
@@ -3240,3 +3715,5 @@ tags:
   name: tasks
 - description: Default agent per session source owned by the authenticated user.
   name: agent-defaults
+- description: Agent memory records owned by the authenticated user.
+  name: memory

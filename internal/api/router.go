@@ -31,6 +31,7 @@ func APIRouter(r *gin.Engine) {
 	UserConfigsRouter(r)
 	AgentDefaultsRouter(r)
 	TasksRouter(r)
+	MemoryRouter(r)
 	// The internal routes live in their own package so that swag, which walks
 	// this one, never pulls them into the public specification.
 	internalapi.Router(r, config.InternalToken)
@@ -126,6 +127,10 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.NotFound, "Task not found.")
 	case errors.Is(err, repository.ErrSessionNotFound):
 		utils.Abort(c, utils.NotFound, "Session not found.")
+	case errors.Is(err, repository.ErrMemoryNotFound):
+		utils.Abort(c, utils.NotFound, "Memory not found.")
+	case errors.Is(err, repository.ErrPinnedLimit):
+		utils.Abort(c, utils.PinnedLimit, "At most 5 rows of one agent may be pinned.")
 	case errors.Is(err, repository.ErrUserNotFound):
 		utils.Abort(c, utils.BadRequest, "User not found.")
 	case errors.Is(err, repository.ErrGroupNotFound):
@@ -156,11 +161,14 @@ func abortError(c *gin.Context, err error) {
 	default:
 		var policy *service.PolicyError
 		var validation *service.ValidationError
+		var invalidContent *service.InvalidContentError
 		switch {
 		case errors.As(err, &policy):
 			utils.Abort(c, utils.BadRequest, policy.Error())
 		case errors.As(err, &validation):
 			utils.Abort(c, utils.BadRequest, validation.Message)
+		case errors.As(err, &invalidContent):
+			utils.Abort(c, utils.InvalidContent, invalidContent.Message)
 		default:
 			abortInternal(c, err)
 		}

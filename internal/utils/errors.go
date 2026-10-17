@@ -24,6 +24,15 @@ const (
 	NotFound Code = "NOT_FOUND"
 	// Conflict is used when the request conflicts with the current state.
 	Conflict Code = "CONFLICT"
+	// InvalidContent is used when a memory record breaks a column limit: empty
+	// or over-long content, too many keywords, a missing occurrence time.
+	InvalidContent Code = "INVALID_CONTENT"
+	// ImmutableField is used when a request names a field that cannot be
+	// changed after it is written.
+	ImmutableField Code = "IMMUTABLE_FIELD"
+	// PinnedLimit is used when a pin would take a (user, agent) pair past its
+	// pinned rows limit.
+	PinnedLimit Code = "PINNED_LIMIT"
 	// AgentAmbiguous is used when a name matches more than one agent the caller
 	// may use.
 	AgentAmbiguous Code = "AGENT_AMBIGUOUS"
@@ -43,6 +52,9 @@ var statuses = map[Code]int{
 	BadRequest:        http.StatusBadRequest,
 	NotFound:          http.StatusNotFound,
 	Conflict:          http.StatusConflict,
+	InvalidContent:    http.StatusBadRequest,
+	ImmutableField:    http.StatusBadRequest,
+	PinnedLimit:       http.StatusConflict,
 	AgentAmbiguous:    http.StatusConflict,
 	ProviderAmbiguous: http.StatusConflict,
 	LastSuperuser:     http.StatusConflict,

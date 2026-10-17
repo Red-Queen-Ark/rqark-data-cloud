@@ -1554,6 +1554,478 @@ const docTemplate = `{
                 }
             }
         },
+        "/memory": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the caller's memory records ordered by occurred_at descending, then id descending. agent_id narrows the page to one of the caller's own agents; leaving it out covers every agent. The page continues from cursor, which is the next_cursor of the previous response. Rows are not ordered by score: score depends on now(), so a cursor built from it would drift and repeat or skip rows between pages.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory"
+                ],
+                "summary": "List memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Agent ID",
+                        "name": "agent_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "next_cursor of the previous page",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size, default 100, at most 100",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.MemoryPage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Appends one record to the caller's memory log. The agent must belong to the caller. content is limited to 200 characters and keywords to 8 entries; a longer value is rejected rather than truncated. occurred_at is required because it drives the score decay. Pinning at creation counts against the same limit of 5 pinned rows per (user, agent) pair.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory"
+                ],
+                "summary": "Create a memory record",
+                "parameters": [
+                    {
+                        "description": "Record to append",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateMemoryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/api.MemoryDetailDTO"
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "URL of the created record"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/memory/prompt": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns at most 20 records of one of the caller's agents, ordered pinned first, then the decayed score, then recency. This is the one ordering the injection prompt uses and search does not: pinned rows here are exempt from decay. Every returned row counts as injected, recorded at most once per UTC day.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory"
+                ],
+                "summary": "Memory injection prompt",
+                "parameters": [
+                    {
+                        "description": "Agent to read",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.PromptMemoryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.MemoryDTO"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/memory/search": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns at most 20 records of one of the caller's agents. Rows are ranked by how many of the requested keywords they carry, then by the decayed score, then by recency; pinned is ignored here and only orders the injection prompt. query matches content or a keyword as a substring. at bounds occurred_at from above, so asking what the user wanted on a date means at plus keywords, not at alone. Every returned row counts as one hit, recorded at most once per UTC day.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory"
+                ],
+                "summary": "Search memory",
+                "parameters": [
+                    {
+                        "description": "Search terms",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.SearchMemoryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.MemoryDTO"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/memory/{uuid}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one of the caller's records, source_message included. A record that does not exist or belongs to another pair is reported as 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory"
+                ],
+                "summary": "Get a memory record",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Memory ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.MemoryDetailDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Hard delete of one of the caller's records. This is how a wrong record is corrected: the agent cannot edit or delete, so only the user removes it.",
+                "tags": [
+                    "memory"
+                ],
+                "summary": "Delete a memory record",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Memory ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "The only field a caller may change is pinned; content, occurred_at and every other field are immutable, and naming one answers 400 IMMUTABLE_FIELD. A corrected record is written as a new row, not an edit. At most 5 rows of one (user, agent) pair may be pinned.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory"
+                ],
+                "summary": "Pin or unpin a memory record",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Memory ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Pin state",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.PatchMemoryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.MemoryDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/ping": {
             "get": {
                 "description": "Returns pong. Does not touch PostgreSQL or Redis.",
@@ -3733,6 +4205,43 @@ const docTemplate = `{
                 }
             }
         },
+        "api.CreateMemoryRequest": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "content": {
+                    "type": "string",
+                    "example": "Boss prefers short replies."
+                },
+                "keywords": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "reply",
+                        "style"
+                    ]
+                },
+                "occurred_at": {
+                    "type": "string"
+                },
+                "pinned": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "source": {
+                    "type": "string",
+                    "example": "TUI"
+                },
+                "source_message": {
+                    "type": "object"
+                }
+            }
+        },
         "api.CreateProviderRequest": {
             "type": "object",
             "properties": {
@@ -3926,6 +4435,126 @@ const docTemplate = `{
                 }
             }
         },
+        "api.MemoryDTO": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "content": {
+                    "type": "string",
+                    "example": "Boss prefers short replies."
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "hits": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "id": {
+                    "type": "string",
+                    "example": "7c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "keywords": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "reply",
+                        "style"
+                    ]
+                },
+                "last_used_at": {
+                    "type": "string"
+                },
+                "occurred_at": {
+                    "type": "string"
+                },
+                "pinned": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "source": {
+                    "type": "string",
+                    "example": "TUI"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.MemoryDetailDTO": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "content": {
+                    "type": "string",
+                    "example": "Boss prefers short replies."
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "hits": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "id": {
+                    "type": "string",
+                    "example": "7c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "keywords": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "reply",
+                        "style"
+                    ]
+                },
+                "last_used_at": {
+                    "type": "string"
+                },
+                "occurred_at": {
+                    "type": "string"
+                },
+                "pinned": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "source": {
+                    "type": "string",
+                    "example": "TUI"
+                },
+                "source_message": {
+                    "type": "object"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.MemoryPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.MemoryDTO"
+                    }
+                },
+                "next_cursor": {
+                    "type": "string",
+                    "example": ""
+                }
+            }
+        },
         "api.MessageResponse": {
             "type": "object",
             "properties": {
@@ -3935,12 +4564,30 @@ const docTemplate = `{
                 }
             }
         },
+        "api.PatchMemoryRequest": {
+            "type": "object",
+            "properties": {
+                "pinned": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
         "api.PingResponse": {
             "type": "object",
             "properties": {
                 "message": {
                     "type": "string",
                     "example": "pong"
+                }
+            }
+        },
+        "api.PromptMemoryRequest": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
                 }
             }
         },
@@ -4094,6 +4741,32 @@ const docTemplate = `{
                 "token": {
                     "type": "string",
                     "example": "9f2c1a1b1c1d1e1f1a1b1c1d1e1f1a1b"
+                }
+            }
+        },
+        "api.SearchMemoryRequest": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "at": {
+                    "type": "string"
+                },
+                "keywords": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "reply",
+                        "style"
+                    ]
+                },
+                "query": {
+                    "type": "string",
+                    "example": "reply"
                 }
             }
         },
@@ -4588,6 +5261,9 @@ const docTemplate = `{
                 "BAD_REQUEST",
                 "NOT_FOUND",
                 "CONFLICT",
+                "INVALID_CONTENT",
+                "IMMUTABLE_FIELD",
+                "PINNED_LIMIT",
                 "AGENT_AMBIGUOUS",
                 "PROVIDER_AMBIGUOUS",
                 "LAST_SUPERUSER",
@@ -4599,6 +5275,9 @@ const docTemplate = `{
                 "BadRequest",
                 "NotFound",
                 "Conflict",
+                "InvalidContent",
+                "ImmutableField",
+                "PinnedLimit",
                 "AgentAmbiguous",
                 "ProviderAmbiguous",
                 "LastSuperuser",
@@ -4783,6 +5462,10 @@ const docTemplate = `{
         {
             "description": "Default agent per session source owned by the authenticated user.",
             "name": "agent-defaults"
+        },
+        {
+            "description": "Agent memory records owned by the authenticated user.",
+            "name": "memory"
         }
     ]
 }`
