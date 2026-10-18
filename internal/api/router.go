@@ -32,6 +32,7 @@ func APIRouter(r *gin.Engine) {
 	AgentDefaultsRouter(r)
 	TasksRouter(r)
 	MemoryRouter(r)
+	SopsRouter(r)
 	// The internal routes live in their own package so that swag, which walks
 	// this one, never pulls them into the public specification.
 	internalapi.Router(r, config.InternalToken)
@@ -107,6 +108,8 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.Conflict, "Group name is already taken.")
 	case errors.Is(err, service.ErrAgentNameTaken):
 		utils.Abort(c, utils.Conflict, "Agent name is already taken.")
+	case errors.Is(err, service.ErrSopSlugTaken):
+		utils.Abort(c, utils.Conflict, "That slug is already taken.")
 	case errors.Is(err, service.ErrTaskNameTaken):
 		utils.Abort(c, utils.Conflict, "Task name is already taken.")
 	case errors.Is(err, service.ErrTaskAgentAmbiguous):
@@ -129,6 +132,8 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.NotFound, "Session not found.")
 	case errors.Is(err, repository.ErrMemoryNotFound):
 		utils.Abort(c, utils.NotFound, "Memory not found.")
+	case errors.Is(err, repository.ErrSopNotFound):
+		utils.Abort(c, utils.NotFound, "Sop not found.")
 	case errors.Is(err, repository.ErrPinnedLimit):
 		utils.Abort(c, utils.PinnedLimit, "At most 5 rows of one agent may be pinned.")
 	case errors.Is(err, repository.ErrUserNotFound):

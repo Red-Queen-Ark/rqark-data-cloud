@@ -209,6 +209,21 @@ definitions:
         example: 6b1c1f3a-1a1a-4a1a-8a1a-1a1a1a1a1a1a
         type: string
     type: object
+  api.CreateSopRequest:
+    properties:
+      content:
+        example: |-
+          # Trip itinerary
+
+          Plan the trip day by day.
+        type: string
+      slug:
+        example: trip-itinerary
+        type: string
+      title:
+        example: Trip itinerary
+        type: string
+    type: object
   api.CreateTaskRequest:
     properties:
       agent_name:
@@ -381,6 +396,18 @@ definitions:
       pinned:
         example: true
         type: boolean
+    type: object
+  api.PatchSopRequest:
+    properties:
+      content:
+        example: |-
+          # Trip itinerary
+
+          Plan the trip day by day.
+        type: string
+      title:
+        example: Trip itinerary
+        type: string
     type: object
   api.PingResponse:
     properties:
@@ -569,6 +596,35 @@ definitions:
       priority:
         example: 1
         type: integer
+    type: object
+  api.SopDTO:
+    properties:
+      content:
+        example: |-
+          # Trip itinerary
+
+          Plan the trip day by day.
+        type: string
+      created_at:
+        type: string
+      slug:
+        example: trip-itinerary
+        type: string
+      title:
+        example: Trip itinerary
+        type: string
+      updated_at:
+        type: string
+    type: object
+  api.SopPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/api.SopDTO'
+        type: array
+      next_cursor:
+        example: ""
+        type: string
     type: object
   api.TaskDTO:
     properties:
@@ -2858,6 +2914,211 @@ paths:
       summary: List session messages
       tags:
       - sessions
+  /sops:
+    get:
+      description: 'Returns the caller''s sops ordered by slug ascending. The page
+        continues from cursor, which is the next_cursor of the previous response.
+        sops are per-user: no agent is involved, so one procedure is available to
+        every agent the caller talks to.'
+      parameters:
+      - description: next_cursor of the previous page
+        in: query
+        name: cursor
+        type: string
+      - description: Page size, default 100, at most 100
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SopPage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List sops
+      tags:
+      - sops
+    post:
+      consumes:
+      - application/json
+      description: Stores one procedure under a slug the caller picks. The slug is
+        what a message calls the procedure by, so it is limited to lowercase letters,
+        digits and hyphens; a slug the caller already uses answers 409 rather than
+        overwriting the stored procedure. content is limited to 2000 characters and
+        a longer one is rejected rather than truncated. title is optional and defaults
+        to the content's first heading, then to the slug.
+      parameters:
+      - description: Sop to store
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateSopRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: URL of the created sop
+              type: string
+          schema:
+            $ref: '#/definitions/api.SopDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a sop
+      tags:
+      - sops
+  /sops/{slug}:
+    delete:
+      description: Hard delete of one of the caller's sop. A message that named the
+        slug afterwards is an ordinary message again.
+      parameters:
+      - description: Sop slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a sop
+      tags:
+      - sops
+    get:
+      description: Returns one of the caller's sops, content included. A slug that
+        does not exist or belongs to another user is reported as 404.
+      parameters:
+      - description: Sop slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SopDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a sop
+      tags:
+      - sops
+    patch:
+      consumes:
+      - application/json
+      description: Rewrites the title or content of one of the caller's sops. A field
+        left out keeps what is stored. The slug is part of the identity and cannot
+        be changed; a body that names it answers 400 IMMUTABLE_FIELD. content is limited
+        to 2000 characters and a longer one is rejected rather than truncated.
+      parameters:
+      - description: Sop slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Fields to change
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.PatchSopRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SopDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a sop
+      tags:
+      - sops
   /swagger.json:
     get:
       description: Returns the generated Swagger 2.0 document describing this API.
@@ -3717,3 +3978,5 @@ tags:
   name: agent-defaults
 - description: Agent memory records owned by the authenticated user.
   name: memory
+- description: Standard operating procedures owned by the authenticated user.
+  name: sops

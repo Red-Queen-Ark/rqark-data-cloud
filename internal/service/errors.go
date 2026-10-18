@@ -26,6 +26,9 @@ var (
 	// ErrTaskNameTaken is returned when a write would duplicate the name of a
 	// task already owned by the same user.
 	ErrTaskNameTaken = errors.New("service: task name already taken")
+	// ErrSopSlugTaken is returned when a write would duplicate a slug the same
+	// user already uses.
+	ErrSopSlugTaken = errors.New("service: sop slug already taken")
 	// ErrTaskAgentAmbiguous is returned when a task names an agent that more
 	// than one agent the user may use carries, so the name alone does not say
 	// which one to run.
@@ -115,6 +118,8 @@ func mapWriteError(err error) error {
 		return ErrAgentNameTaken
 	case "idx_tasks_user_id_name":
 		return ErrTaskNameTaken
+	case "idx_sops_user_id_slug":
+		return ErrSopSlugTaken
 	case "sessions_pkey":
 		return ErrSessionConflict
 	default:

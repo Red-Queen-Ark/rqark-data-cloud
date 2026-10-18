@@ -2798,6 +2798,306 @@
                 }
             }
         },
+        "/sops": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the caller's sops ordered by slug ascending. The page continues from cursor, which is the next_cursor of the previous response. sops are per-user: no agent is involved, so one procedure is available to every agent the caller talks to.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sops"
+                ],
+                "summary": "List sops",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "next_cursor of the previous page",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size, default 100, at most 100",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SopPage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Stores one procedure under a slug the caller picks. The slug is what a message calls the procedure by, so it is limited to lowercase letters, digits and hyphens; a slug the caller already uses answers 409 rather than overwriting the stored procedure. content is limited to 2000 characters and a longer one is rejected rather than truncated. title is optional and defaults to the content's first heading, then to the slug.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sops"
+                ],
+                "summary": "Create a sop",
+                "parameters": [
+                    {
+                        "description": "Sop to store",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateSopRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/api.SopDTO"
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "URL of the created sop"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sops/{slug}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one of the caller's sops, content included. A slug that does not exist or belongs to another user is reported as 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sops"
+                ],
+                "summary": "Get a sop",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Sop slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SopDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Hard delete of one of the caller's sop. A message that named the slug afterwards is an ordinary message again.",
+                "tags": [
+                    "sops"
+                ],
+                "summary": "Delete a sop",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Sop slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Rewrites the title or content of one of the caller's sops. A field left out keeps what is stored. The slug is part of the identity and cannot be changed; a body that names it answers 400 IMMUTABLE_FIELD. content is limited to 2000 characters and a longer one is rejected rather than truncated.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sops"
+                ],
+                "summary": "Update a sop",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Sop slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to change",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.PatchSopRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SopDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/swagger.json": {
             "get": {
                 "description": "Returns the generated Swagger 2.0 document describing this API. Served without caching, so a viewer always sees the current API.",
@@ -4319,6 +4619,23 @@
                 }
             }
         },
+        "api.CreateSopRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "example": "# Trip itinerary\n\nPlan the trip day by day."
+                },
+                "slug": {
+                    "type": "string",
+                    "example": "trip-itinerary"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Trip itinerary"
+                }
+            }
+        },
         "api.CreateTaskRequest": {
             "type": "object",
             "properties": {
@@ -4563,6 +4880,19 @@
                 "pinned": {
                     "type": "boolean",
                     "example": true
+                }
+            }
+        },
+        "api.PatchSopRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "example": "# Trip itinerary\n\nPlan the trip day by day."
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Trip itinerary"
                 }
             }
         },
@@ -4827,6 +5157,44 @@
                 "priority": {
                     "type": "integer",
                     "example": 1
+                }
+            }
+        },
+        "api.SopDTO": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "example": "# Trip itinerary\n\nPlan the trip day by day."
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string",
+                    "example": "trip-itinerary"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Trip itinerary"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.SopPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.SopDTO"
+                    }
+                },
+                "next_cursor": {
+                    "type": "string",
+                    "example": ""
                 }
             }
         },
@@ -5459,6 +5827,10 @@
         {
             "description": "Agent memory records owned by the authenticated user.",
             "name": "memory"
+        },
+        {
+            "description": "Standard operating procedures owned by the authenticated user.",
+            "name": "sops"
         }
     ]
 }
