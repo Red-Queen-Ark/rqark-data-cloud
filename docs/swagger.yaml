@@ -255,6 +255,19 @@ definitions:
         example: Asia/Hong_Kong
         type: string
     type: object
+  api.CreateTodoRequest:
+    properties:
+      description:
+        type: string
+      due_at:
+        type: string
+      sort_order:
+        example: 0
+        type: integer
+      title:
+        example: 寫 issue
+        type: string
+    type: object
   api.CreateUserRequest:
     properties:
       display_name:
@@ -689,6 +702,32 @@ definitions:
         example: schedule
         type: string
     type: object
+  api.TodoDTO:
+    properties:
+      created_at:
+        type: string
+      description:
+        example: ""
+        type: string
+      done:
+        example: false
+        type: boolean
+      done_at:
+        type: string
+      due_at:
+        type: string
+      id:
+        example: 5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      sort_order:
+        example: 0
+        type: integer
+      title:
+        example: 寫 issue
+        type: string
+      updated_at:
+        type: string
+    type: object
   api.TokenPair:
     properties:
       access_token:
@@ -808,6 +847,19 @@ definitions:
       schedule_kind:
         type: string
       timezone:
+        type: string
+    type: object
+  api.UpdateTodoRequest:
+    properties:
+      description:
+        type: string
+      done:
+        type: boolean
+      due_at:
+        type: string
+      sort_order:
+        type: integer
+      title:
         type: string
     type: object
   api.UpdateUserRequest:
@@ -3450,6 +3502,203 @@ paths:
       summary: List task runs
       tags:
       - tasks
+  /todos:
+    get:
+      description: 'Returns every todo of the caller, open ones first, then by sort_order
+        and creation time. An optional done filter keeps one half of the list. Not
+        paginated: it is one user''s own list, which the client syncs whole.'
+      parameters:
+      - description: Keep only open (false) or done (true) items
+        in: query
+        name: done
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.TodoDTO'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List todos
+      tags:
+      - todos
+    post:
+      consumes:
+      - application/json
+      description: The todo belongs to the caller and starts open. Answers 201 with
+        a Location header pointing at the new todo.
+      parameters:
+      - description: Todo to create
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateTodoRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: URL of the created todo
+              type: string
+          schema:
+            $ref: '#/definitions/api.TodoDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a todo
+      tags:
+      - todos
+  /todos/{uuid}:
+    delete:
+      description: Hard delete of one of the caller's todos. Another user's todo is
+        reported as 404.
+      parameters:
+      - description: Todo ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a todo
+      tags:
+      - todos
+    get:
+      description: Returns one of the caller's todos. Another user's todo is reported
+        as 404.
+      parameters:
+      - description: Todo ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.TodoDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a todo
+      tags:
+      - todos
+    put:
+      consumes:
+      - application/json
+      description: 'Partial update of one of the caller''s todos: an absent field
+        is left untouched, an explicit null for due_at clears the due date. Ticking
+        done stamps done_at, unticking it clears the stamp. Another user''s todo is
+        reported as 404.'
+      parameters:
+      - description: Todo ID
+        format: uuid
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Fields to change
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateTodoRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.TodoDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a todo
+      tags:
+      - todos
   /user-config:
     get:
       description: 'Returns all of the caller''s config entries, ordered by key. Not
@@ -3980,3 +4229,5 @@ tags:
   name: memory
 - description: Standard operating procedures owned by the authenticated user.
   name: sops
+- description: Todo items owned by the authenticated user.
+  name: todos

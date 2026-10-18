@@ -33,6 +33,7 @@ func APIRouter(r *gin.Engine) {
 	TasksRouter(r)
 	MemoryRouter(r)
 	SopsRouter(r)
+	TodosRouter(r)
 	// The internal routes live in their own package so that swag, which walks
 	// this one, never pulls them into the public specification.
 	internalapi.Router(r, config.InternalToken)
@@ -150,6 +151,8 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.NotFound, "User config not found.")
 	case errors.Is(err, repository.ErrAgentDefaultNotFound):
 		utils.Abort(c, utils.NotFound, "Agent default not found.")
+	case errors.Is(err, repository.ErrTodoNotFound):
+		utils.Abort(c, utils.NotFound, "Todo not found.")
 	case errors.Is(err, service.ErrAPIKeyRevoked):
 		utils.Abort(c, utils.Conflict, "This API key was deleted and cannot be brought back.")
 	case errors.Is(err, service.ErrAPIKeyLapsed):

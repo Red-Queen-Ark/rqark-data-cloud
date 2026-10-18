@@ -57,6 +57,8 @@ import (
 // @tag.description			Agent memory records owned by the authenticated user.
 // @tag.name					sops
 // @tag.description			Standard operating procedures owned by the authenticated user.
+// @tag.name					todos
+// @tag.description			Todo items owned by the authenticated user.
 
 // @securityDefinitions.apikey	BearerAuth
 // @in							header
@@ -64,7 +66,7 @@ import (
 // @description				Bearer <access_token>
 func main() {
 	config.InitDatabase()
-	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}, &repository.Agent{}, &repository.Provider{}, &repository.Session{}, &repository.SessionMessage{}, &repository.APIKey{}, &repository.UserConfig{}, &repository.ProviderPriority{}, &repository.AgentDefault{}, &repository.Task{}, &repository.TaskRun{}, &repository.Memory{}, &repository.Sop{}); err != nil {
+	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}, &repository.Agent{}, &repository.Provider{}, &repository.Session{}, &repository.SessionMessage{}, &repository.APIKey{}, &repository.UserConfig{}, &repository.ProviderPriority{}, &repository.AgentDefault{}, &repository.Task{}, &repository.TaskRun{}, &repository.Memory{}, &repository.Sop{}, &repository.Todo{}); err != nil {
 		log.Fatalf("main: automigrate: %v", err)
 	}
 	config.InitRedis()
