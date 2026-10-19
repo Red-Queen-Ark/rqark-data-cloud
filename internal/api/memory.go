@@ -34,6 +34,7 @@ type MemoryDTO struct {
 	AgentID    uuid.UUID  `json:"agent_id" example:"5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	Content    string     `json:"content" example:"Boss prefers short replies."`
 	Keywords   []string   `json:"keywords" example:"reply,style"`
+	Kind       string     `json:"kind" example:"fact" enums:"fact,event"`
 	Hits       int        `json:"hits" example:"2"`
 	Source     string     `json:"source" example:"TUI"`
 	OccurredAt time.Time  `json:"occurred_at"`
@@ -49,6 +50,7 @@ type MemoryDetailDTO struct {
 	AgentID       uuid.UUID       `json:"agent_id" example:"5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	Content       string          `json:"content" example:"Boss prefers short replies."`
 	Keywords      []string        `json:"keywords" example:"reply,style"`
+	Kind          string          `json:"kind" example:"fact" enums:"fact,event"`
 	Hits          int             `json:"hits" example:"2"`
 	Source        string          `json:"source" example:"TUI"`
 	SourceMessage json.RawMessage `json:"source_message" swaggertype:"object"`
@@ -78,6 +80,7 @@ type CreateMemoryRequest struct {
 	AgentID       uuid.UUID       `json:"agent_id" example:"5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	Content       string          `json:"content" example:"Boss prefers short replies."`
 	Keywords      []string        `json:"keywords" example:"reply,style"`
+	Kind          string          `json:"kind" example:"fact" enums:"fact,event"`
 	Source        string          `json:"source" example:"TUI"`
 	SourceMessage json.RawMessage `json:"source_message" swaggertype:"object"`
 	OccurredAt    *time.Time      `json:"occurred_at"`
@@ -99,6 +102,45 @@ type SearchMemoryRequest struct {
 	At       *time.Time `json:"at"`
 }
 
+// AgentStateDTO is the state board of one (user, agent) pair in its wire form.
+// The pair itself is left out: a caller only ever sees its own.
+type AgentStateDTO struct {
+	AgentID   uuid.UUID `json:"agent_id" example:"5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
+	Content   string    `json:"content" example:"Working on the memory rework."`
+	Version   int       `json:"version" example:"7"`
+	Source    string    `json:"source" example:"TUI"`
+	UpdatedAt time.Time `json:"updated_at"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// PutAgentStateRequest is the body of PUT /api/memory/state. version is the
+// version the caller read; leaving it out overwrites whatever is stored.
+type PutAgentStateRequest struct {
+	AgentID uuid.UUID `json:"agent_id" example:"5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
+	Content string    `json:"content" example:"Working on the memory rework."`
+	Version *int      `json:"version" example:"7"`
+	Source  string    `json:"source" example:"TUI"`
+}
+
+// MemoryPromptResponse is what the injection prompt asks for in one round trip:
+// the current state board plus the fact rows.
+type MemoryPromptResponse struct {
+	State    *AgentStateDTO `json:"state"`
+	Memories []MemoryDTO    `json:"memories"`
+}
+
+// toAgentStateDTO converts a stored state row into its wire form.
+func toAgentStateDTO(state *repository.AgentState) AgentStateDTO {
+	return AgentStateDTO{
+		AgentID:   state.AgentID,
+		Content:   state.Content,
+		Version:   state.Version,
+		Source:    state.Source,
+		UpdatedAt: state.UpdatedAt,
+		CreatedAt: state.CreatedAt,
+	}
+}
+
 // toMemoryDTO converts a stored row into its list form. keywords is reported as
 // an empty list rather than null so a client never has to branch on it.
 func toMemoryDTO(memory *repository.Memory) MemoryDTO {
@@ -111,6 +153,7 @@ func toMemoryDTO(memory *repository.Memory) MemoryDTO {
 		AgentID:    memory.AgentID,
 		Content:    memory.Content,
 		Keywords:   keywords,
+		Kind:       memory.Kind,
 		Hits:       memory.Hits,
 		Source:     memory.Source,
 		OccurredAt: memory.OccurredAt,
@@ -132,6 +175,7 @@ func toMemoryDetailDTO(memory *repository.Memory) MemoryDetailDTO {
 		AgentID:       memory.AgentID,
 		Content:       memory.Content,
 		Keywords:      keywords,
+		Kind:          memory.Kind,
 		Hits:          memory.Hits,
 		Source:        memory.Source,
 		SourceMessage: memory.SourceMessage,
@@ -151,6 +195,7 @@ func toMemoryDetailDTO(memory *repository.Memory) MemoryDetailDTO {
 //	@Security		BearerAuth
 //	@Produce		json
 //	@Param			agent_id	query		string	false	"Agent ID"	format(uuid)
+//	@Param			kind		query		string	false	"Restrict to one kind: fact or event"	Enums(fact, event)
 //	@Param			cursor		query		string	false	"next_cursor of the previous page"
 //	@Param			limit		query		int		false	"Page size, default 100, at most 100"
 //	@Success		200			{object}	MemoryPage
@@ -187,7 +232,7 @@ func ListMemory(c *gin.Context) {
 	}
 
 	limit := memoryPageLimit(c.Query("limit"))
-	memories, err := service.ListMemories(c.Request.Context(), actor.ID, agentID, cursor, limit)
+	memories, err := service.ListMemories(c.Request.Context(), actor.ID, agentID, c.Query("kind"), cursor, limit)
 	if err != nil {
 		abortError(c, err)
 		return
@@ -276,6 +321,7 @@ func CreateMemory(c *gin.Context) {
 		AgentID:       request.AgentID,
 		Content:       request.Content,
 		Keywords:      request.Keywords,
+		Kind:          request.Kind,
 		Source:        request.Source,
 		SourceMessage: request.SourceMessage,
 		OccurredAt:    occurredAt,
@@ -416,16 +462,17 @@ func SearchMemory(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-// PromptMemory returns the records the injection prompt carries for one agent.
+// PromptMemory returns the state board and the records the injection prompt
+// carries for one agent.
 //
 //	@Summary		Memory injection prompt
-//	@Description	Returns at most 20 records of one of the caller's agents, ordered pinned first, then the decayed score, then recency. This is the one ordering the injection prompt uses and search does not: pinned rows here are exempt from decay. Every returned row counts as injected, recorded at most once per UTC day.
+//	@Description	One round trip for a turn's head: state is the current state board (null when the pair has none yet) and memories are at most 20 fact rows of one of the caller's agents, ordered pinned first, then the decayed score, then recency. This is the one ordering the injection prompt uses and search does not: pinned rows here are exempt from decay. Events are never injected. Every returned memory row counts as injected, recorded at most once per UTC day.
 //	@Tags			memory
 //	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
 //	@Param			request	body		PromptMemoryRequest	true	"Agent to read"
-//	@Success		200		{array}		MemoryDTO
+//	@Success		200		{object}	MemoryPromptResponse
 //	@Failure		400		{object}	utils.ErrorResponse
 //	@Failure		401		{object}	utils.ErrorResponse
 //	@Failure		404		{object}	utils.ErrorResponse
@@ -449,12 +496,145 @@ func PromptMemory(c *gin.Context) {
 		abortError(c, err)
 		return
 	}
+	state, err := service.AgentStateOrNil(c.Request.Context(), actor.ID, request.AgentID)
+	if err != nil {
+		abortError(c, err)
+		return
+	}
 
 	items := make([]MemoryDTO, 0, len(memories))
 	for i := range memories {
 		items = append(items, toMemoryDTO(&memories[i]))
 	}
-	c.JSON(http.StatusOK, items)
+	response := MemoryPromptResponse{Memories: items}
+	if state != nil {
+		dto := toAgentStateDTO(state)
+		response.State = &dto
+	}
+	c.JSON(http.StatusOK, response)
+}
+
+// GetAgentState returns the state board of one agent.
+//
+//	@Summary		Get the state board
+//	@Description	Returns the current state board of one of the caller's agents. A pair that has never been written answers 404 NOT_FOUND: an agent without a state is not an error, it simply has nothing to show.
+//	@Tags			memory
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			agent_id	query		string	true	"Agent ID"	format(uuid)
+//	@Success		200			{object}	AgentStateDTO
+//	@Failure		400			{object}	utils.ErrorResponse
+//	@Failure		401			{object}	utils.ErrorResponse
+//	@Failure		404			{object}	utils.ErrorResponse
+//	@Failure		500			{object}	utils.ErrorResponse
+//	@Router			/memory/state [get]
+func GetAgentState(c *gin.Context) {
+	actor, ok := middlewares.CurrentUser(c)
+	if !ok {
+		utils.Abort(c, utils.Unauthorized, "Authentication credentials were not provided.")
+		return
+	}
+	agentID, ok := stateAgentID(c)
+	if !ok {
+		return
+	}
+
+	state, err := service.GetAgentState(c.Request.Context(), actor.ID, agentID)
+	if err != nil {
+		abortError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, toAgentStateDTO(state))
+}
+
+// PutAgentState overwrites the state board of one agent.
+//
+//	@Summary		Overwrite the state board
+//	@Description	Upserts the state board of one of the caller's agents. The agent may write here, unlike memory, which only the user deletes. version, when sent, is the version the caller read: a write carrying a version the row no longer holds answers 409 STATE_CONFLICT and changes nothing, so a stale writer cannot silently undo a newer board. Omitting version overwrites whatever is stored. content is markdown, at most 2000 characters, and blank is refused: DELETE removes the board.
+//	@Tags			memory
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		PutAgentStateRequest	true	"State to store"
+//	@Success		200		{object}	AgentStateDTO
+//	@Failure		400		{object}	utils.ErrorResponse
+//	@Failure		401		{object}	utils.ErrorResponse
+//	@Failure		404		{object}	utils.ErrorResponse
+//	@Failure		409		{object}	utils.ErrorResponse
+//	@Failure		500		{object}	utils.ErrorResponse
+//	@Router			/memory/state [put]
+func PutAgentState(c *gin.Context) {
+	actor, ok := middlewares.CurrentUser(c)
+	if !ok {
+		utils.Abort(c, utils.Unauthorized, "Authentication credentials were not provided.")
+		return
+	}
+
+	var request PutAgentStateRequest
+	if err := decodeStrictJSON(c, &request); err != nil {
+		abortBadRequest(c, "Malformed request body.")
+		return
+	}
+
+	state, err := service.SetAgentState(c.Request.Context(), actor.ID, service.SetAgentStateInput{
+		AgentID: request.AgentID,
+		Content: request.Content,
+		Source:  request.Source,
+		Version: request.Version,
+	})
+	if err != nil {
+		abortError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, toAgentStateDTO(state))
+}
+
+// DeleteAgentState removes the state board of one agent.
+//
+//	@Summary		Delete the state board
+//	@Description	Hard deletes the state board of one of the caller's agents. The next write starts again at version 1.
+//	@Tags			memory
+//	@Security		BearerAuth
+//	@Param			agent_id	query	string	true	"Agent ID"	format(uuid)
+//	@Success		204
+//	@Failure		400		{object}	utils.ErrorResponse
+//	@Failure		401		{object}	utils.ErrorResponse
+//	@Failure		404		{object}	utils.ErrorResponse
+//	@Failure		500		{object}	utils.ErrorResponse
+//	@Router			/memory/state [delete]
+func DeleteAgentState(c *gin.Context) {
+	actor, ok := middlewares.CurrentUser(c)
+	if !ok {
+		utils.Abort(c, utils.Unauthorized, "Authentication credentials were not provided.")
+		return
+	}
+	agentID, ok := stateAgentID(c)
+	if !ok {
+		return
+	}
+
+	if err := service.DeleteAgentState(c.Request.Context(), actor.ID, agentID); err != nil {
+		abortError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// stateAgentID reads the required agent_id query parameter of the state
+// endpoints. A missing or malformed one is a bad request rather than a lookup of
+// the zero uuid.
+func stateAgentID(c *gin.Context) (uuid.UUID, bool) {
+	raw := c.Query("agent_id")
+	if raw == "" {
+		abortBadRequest(c, "agent_id is required.")
+		return uuid.Nil, false
+	}
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		abortBadRequest(c, "agent_id must be a UUID.")
+		return uuid.Nil, false
+	}
+	return id, true
 }
 
 // MemoryRouter registers the memory routes.
@@ -464,6 +644,9 @@ func MemoryRouter(r *gin.Engine) {
 	memory.POST("", CreateMemory)
 	memory.POST("/search", SearchMemory)
 	memory.POST("/prompt", PromptMemory)
+	memory.GET("/state", GetAgentState)
+	memory.PUT("/state", PutAgentState)
+	memory.DELETE("/state", DeleteAgentState)
 	memory.GET("/:uuid", GetMemory)
 	memory.PATCH("/:uuid", PatchMemory)
 	memory.DELETE("/:uuid", DeleteMemory)
@@ -526,6 +709,7 @@ func checkPatchFields(body map[string]json.RawMessage) (utils.Code, string, bool
 		"agent_id":       true,
 		"content":        true,
 		"keywords":       true,
+		"kind":           true,
 		"hits":           true,
 		"source":         true,
 		"source_message": true,

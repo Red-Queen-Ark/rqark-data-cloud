@@ -33,6 +33,9 @@ const (
 	// PinnedLimit is used when a pin would take a (user, agent) pair past its
 	// pinned rows limit.
 	PinnedLimit Code = "PINNED_LIMIT"
+	// StateConflict is used when a state write carries a version the row no
+	// longer holds, so another writer got there first.
+	StateConflict Code = "STATE_CONFLICT"
 	// AgentAmbiguous is used when a name matches more than one agent the caller
 	// may use.
 	AgentAmbiguous Code = "AGENT_AMBIGUOUS"
@@ -55,6 +58,7 @@ var statuses = map[Code]int{
 	InvalidContent:    http.StatusBadRequest,
 	ImmutableField:    http.StatusBadRequest,
 	PinnedLimit:       http.StatusConflict,
+	StateConflict:     http.StatusConflict,
 	AgentAmbiguous:    http.StatusConflict,
 	ProviderAmbiguous: http.StatusConflict,
 	LastSuperuser:     http.StatusConflict,

@@ -133,6 +133,10 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.NotFound, "Session not found.")
 	case errors.Is(err, repository.ErrMemoryNotFound):
 		utils.Abort(c, utils.NotFound, "Memory not found.")
+	case errors.Is(err, repository.ErrStateNotFound):
+		utils.Abort(c, utils.NotFound, "State not found.")
+	case errors.Is(err, repository.ErrStateConflict):
+		utils.Abort(c, utils.StateConflict, "The state was written by someone else; read it again.")
 	case errors.Is(err, repository.ErrSopNotFound):
 		utils.Abort(c, utils.NotFound, "Sop not found.")
 	case errors.Is(err, repository.ErrPinnedLimit):

@@ -31,6 +31,28 @@ const MemorySearchLimit = 20
 // MemoryPromptLimit is how many rows the injection prompt carries per turn.
 const MemoryPromptLimit = 20
 
+// The two kinds a memory row may carry. A fact is a long-lived statement about
+// the user and is the only kind injected into the prompt. An event is the
+// per-turn record of what the agent was asked and did: it is never injected,
+// because it would fill the 20-row window with chatter, and search finds it
+// when it is needed.
+const (
+	// MemoryKindFact marks a long-lived fact.
+	MemoryKindFact = "fact"
+	// MemoryKindEvent marks one turn's record.
+	MemoryKindEvent = "event"
+)
+
+// EventRetention is how long an event row is kept. Events are a working record
+// of what happened, not a permanent history, so old ones are deleted rather
+// than kept at the cost of a growing table.
+const EventRetention = 90 * 24 * time.Hour
+
+// ValidMemoryKind reports whether kind is one of the two stored kinds.
+func ValidMemoryKind(kind string) bool {
+	return kind == MemoryKindFact || kind == MemoryKindEvent
+}
+
 // Memory is the memory table: one fact an agent recorded for one user. A row
 // belongs to a (user, agent) pair and is never seen by another pair.
 //
@@ -52,6 +74,9 @@ type Memory struct {
 	Hits int `gorm:"type:integer;not null;default:0"`
 	// Source is the platform the row was written from: TUI or AGENT_CLOUD.
 	Source string `gorm:"type:varchar(32);not null;default:''"`
+	// Kind separates a long-lived fact from one turn's event. Only fact rows
+	// reach the injection prompt; events are read through search.
+	Kind string `gorm:"type:text;not null;default:'fact';check:chk_memory_kind,kind IN ('fact','event')"`
 	// SourceMessage is the original message the row was extracted from, kept so
 	// a corrected transcript does not erase the evidence.
 	SourceMessage json.RawMessage `gorm:"serializer:json;type:jsonb"`
@@ -208,11 +233,15 @@ func parseStringArray(s string) (StringArray, error) {
 
 // ListMemories returns one page of userID's memory, newest occurrence first.
 // A non-nil agentID narrows the page to that agent; a nil one covers every agent
-// of the user. A non-nil cursor resumes after the row it names.
-func ListMemories(ctx context.Context, db *gorm.DB, userID uuid.UUID, agentID *uuid.UUID, cursor *MemoryCursor, limit int) ([]Memory, error) {
+// of the user. An empty kind covers both kinds; a non-empty one narrows the page
+// to it. A non-nil cursor resumes after the row it names.
+func ListMemories(ctx context.Context, db *gorm.DB, userID uuid.UUID, agentID *uuid.UUID, kind string, cursor *MemoryCursor, limit int) ([]Memory, error) {
 	query := db.WithContext(ctx).Where("user_id = ?", userID)
 	if agentID != nil {
 		query = query.Where("agent_id = ?", *agentID)
+	}
+	if kind != "" {
+		query = query.Where("kind = ?", kind)
 	}
 	if cursor != nil {
 		query = query.Where("(occurred_at, id) < (?, ?)", cursor.OccurredAt, cursor.ID)
@@ -392,12 +421,12 @@ func SearchMemories(ctx context.Context, db *gorm.DB, userID, agentID uuid.UUID,
 	return memories, nil
 }
 
-// PromptMemories returns the rows an agent injects on every turn: pinned rows
-// first, then the highest decayed score, then the most recent. The window is
-// fixed and never paginated, because the prompt is a bounded slice of the log.
+// PromptMemories returns the rows an agent injects on every turn: facts only,
+// pinned first, then the highest decayed score, then the most recent. The window
+// is fixed and never paginated, because the prompt is a bounded slice of the log.
 func PromptMemories(ctx context.Context, db *gorm.DB, userID, agentID uuid.UUID) ([]Memory, error) {
 	sql := `SELECT m.* FROM memory m
-		WHERE m.user_id = ? AND m.agent_id = ?
+		WHERE m.user_id = ? AND m.agent_id = ? AND m.kind = 'fact'
 		ORDER BY m.pinned DESC, ` + memoryScore + ` DESC, m.occurred_at DESC, m.id DESC
 		LIMIT ?`
 
@@ -406,6 +435,14 @@ func PromptMemories(ctx context.Context, db *gorm.DB, userID, agentID uuid.UUID)
 		return nil, err
 	}
 	return memories, nil
+}
+
+// DeleteExpiredEvents removes the event rows that occurred before cutoff and
+// returns how many went. Facts are never touched, however old: a fact is what
+// the log is for.
+func DeleteExpiredEvents(ctx context.Context, db *gorm.DB, cutoff time.Time) (int64, error) {
+	result := db.WithContext(ctx).Where("kind = ? AND occurred_at < ?", MemoryKindEvent, cutoff).Delete(&Memory{})
+	return result.RowsAffected, result.Error
 }
 
 // TouchMemoryHits records one hit for each of ids, at most once per UTC day.

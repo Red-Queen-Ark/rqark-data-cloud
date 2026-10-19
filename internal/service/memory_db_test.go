@@ -14,11 +14,19 @@ import (
 )
 
 // memoryTestDB opens the shared test database and installs the memory tables on
-// top of it.
+// top of it. AutoMigrate only writes the CHECK constraint while it creates the
+// table, so a memory table left behind by an earlier shape (before kind existed)
+// is rebuilt first: the tests below would otherwise run against a table without
+// the constraint they assert.
 func memoryTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
 	db := testDatabase(t)
+	if db.Migrator().HasTable(&repository.Memory{}) && !db.Migrator().HasConstraint(&repository.Memory{}, "chk_memory_kind") {
+		if err := db.Migrator().DropTable(&repository.Memory{}); err != nil {
+			t.Fatalf("drop stale memory table: %v", err)
+		}
+	}
 	if err := db.AutoMigrate(&repository.User{}, &repository.Agent{}, &repository.Memory{}); err != nil {
 		t.Fatalf("automigrate memory: %v", err)
 	}
@@ -171,7 +179,7 @@ func TestMemoryListCursor(t *testing.T) {
 		}
 	}
 
-	first, err := ListMemories(context.Background(), user.ID, &agent.ID, nil, 3)
+	first, err := ListMemories(context.Background(), user.ID, &agent.ID, "", nil, 3)
 	if err != nil {
 		t.Fatalf("first page: %v", err)
 	}
@@ -180,7 +188,7 @@ func TestMemoryListCursor(t *testing.T) {
 	}
 
 	cursor := &repository.MemoryCursor{OccurredAt: first[len(first)-1].OccurredAt, ID: first[len(first)-1].ID}
-	second, err := ListMemories(context.Background(), user.ID, &agent.ID, cursor, 3)
+	second, err := ListMemories(context.Background(), user.ID, &agent.ID, "", cursor, 3)
 	if err != nil {
 		t.Fatalf("second page: %v", err)
 	}

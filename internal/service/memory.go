@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -42,18 +43,25 @@ type CreateMemoryInput struct {
 	SourceMessage json.RawMessage
 	OccurredAt    time.Time
 	Pinned        bool
+	// Kind is 'fact' or 'event'. An empty kind means 'fact': a caller that does
+	// not name one is appending to the log the agent reads, which is what
+	// memory_save does.
+	Kind string
 }
 
 // ListMemories returns one page of the caller's memory, newest occurrence
 // first. A non-nil agentID is checked against the caller's own agents first, so
 // another user's agent is reported as not found.
-func ListMemories(ctx context.Context, userID uuid.UUID, agentID *uuid.UUID, cursor *repository.MemoryCursor, limit int) ([]repository.Memory, error) {
+func ListMemories(ctx context.Context, userID uuid.UUID, agentID *uuid.UUID, kind string, cursor *repository.MemoryCursor, limit int) ([]repository.Memory, error) {
+	if kind != "" && !repository.ValidMemoryKind(kind) {
+		return nil, &ValidationError{Message: "kind must be 'fact' or 'event'."}
+	}
 	if agentID != nil {
 		if err := requireOwnedAgent(ctx, userID, *agentID); err != nil {
 			return nil, err
 		}
 	}
-	return repository.ListMemories(ctx, config.DB, userID, agentID, cursor, limit)
+	return repository.ListMemories(ctx, config.DB, userID, agentID, kind, cursor, limit)
 }
 
 // GetMemory returns one of the caller's rows, including its source message.
@@ -65,6 +73,13 @@ func GetMemory(ctx context.Context, userID, id uuid.UUID) (*repository.Memory, e
 // the caller: memory is never written into another user's pair, even when the
 // agent is shared.
 func CreateMemory(ctx context.Context, userID uuid.UUID, in CreateMemoryInput) (*repository.Memory, error) {
+	kind := in.Kind
+	if kind == "" {
+		kind = repository.MemoryKindFact
+	}
+	if !repository.ValidMemoryKind(kind) {
+		return nil, &InvalidContentError{Message: "kind must be 'fact' or 'event'."}
+	}
 	content, keywords, err := validateMemoryRecord(in.Content, in.Keywords, in.OccurredAt, in.Source)
 	if err != nil {
 		return nil, err
@@ -83,6 +98,7 @@ func CreateMemory(ctx context.Context, userID uuid.UUID, in CreateMemoryInput) (
 		SourceMessage: in.SourceMessage,
 		OccurredAt:    in.OccurredAt.UTC(),
 		Pinned:        in.Pinned,
+		Kind:          kind,
 	}
 	if err := repository.CreateMemory(ctx, config.DB, memory); err != nil {
 		return nil, err
@@ -90,8 +106,16 @@ func CreateMemory(ctx context.Context, userID uuid.UUID, in CreateMemoryInput) (
 	return memory, nil
 }
 
-// SetMemoryPinned pins or unpins one of the caller's rows.
+// SetMemoryPinned pins or unpins one of the caller's rows. An event cannot be
+// pinned: a pin orders the injection prompt, and events never reach it.
 func SetMemoryPinned(ctx context.Context, userID, id uuid.UUID, pinned bool) (*repository.Memory, error) {
+	memory, err := repository.GetMemory(ctx, config.DB, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	if memory.Kind == repository.MemoryKindEvent {
+		return nil, &InvalidContentError{Message: "kind 'event' rows cannot be pinned."}
+	}
 	return repository.SetMemoryPinned(ctx, config.DB, userID, id, pinned)
 }
 
@@ -101,8 +125,8 @@ func DeleteMemory(ctx context.Context, userID, id uuid.UUID) error {
 }
 
 // PromptMemories returns the rows the injection prompt carries for one agent:
-// at most repository.MemoryPromptLimit rows, pinned first, then the highest
-// decayed score, then the most recent. Every returned row counts as injected, so
+// at most repository.MemoryPromptLimit fact rows, pinned first, then the highest
+// decayed score, then the most recent. Events are never injected. Every returned row counts as injected, so
 // its hit counter is bumped once per UTC day before the rows are handed back.
 func PromptMemories(ctx context.Context, userID, agentID uuid.UUID) ([]repository.Memory, error) {
 	if err := requireOwnedAgent(ctx, userID, agentID); err != nil {
@@ -116,9 +140,9 @@ func PromptMemories(ctx context.Context, userID, agentID uuid.UUID) ([]repositor
 	return touchAndReread(ctx, memories)
 }
 
-// SearchMemories returns up to repository.MemorySearchLimit rows of one agent.
-// Every returned row counts as injected, so its hit counter is bumped once per
-// UTC day before the rows are handed back.
+// SearchMemories returns up to repository.MemorySearchLimit rows of one agent,
+// facts and events alike. Every returned row counts as injected, so its hit
+// counter is bumped once per UTC day before the rows are handed back.
 func SearchMemories(ctx context.Context, userID, agentID uuid.UUID, query string, keywords []string, at *time.Time) ([]repository.Memory, error) {
 	if err := requireOwnedAgent(ctx, userID, agentID); err != nil {
 		return nil, err
@@ -146,6 +170,27 @@ func touchAndReread(ctx context.Context, memories []repository.Memory) ([]reposi
 		return nil, err
 	}
 	return repository.GetMemoriesInOrder(ctx, config.DB, ids)
+}
+
+// PruneExpiredEvents deletes the event rows older than repository.EventRetention
+// and reports how many went. Facts are never pruned.
+func PruneExpiredEvents(ctx context.Context) (int64, error) {
+	return repository.DeleteExpiredEvents(ctx, config.DB, time.Now().UTC().Add(-repository.EventRetention))
+}
+
+// PruneExpiredEventsEvery prunes once at startup and then every interval, so an
+// event's retention does not depend on somebody writing a new one. A failure is
+// logged rather than fatal: a stale row costs disk, not correctness.
+func PruneExpiredEventsEvery(interval time.Duration) {
+	for {
+		deleted, err := PruneExpiredEvents(context.Background())
+		if err != nil {
+			log.Printf("service: prune expired memory events: %v", err)
+		} else if deleted > 0 {
+			log.Printf("service: pruned %d expired memory events", deleted)
+		}
+		time.Sleep(interval)
+	}
 }
 
 // requireOwnedAgent reports repository.ErrAgentNotFound unless agentID is one of

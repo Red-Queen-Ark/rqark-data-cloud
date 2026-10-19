@@ -1578,6 +1578,16 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "fact",
+                            "event"
+                        ],
+                        "type": "string",
+                        "description": "Restrict to one kind: fact or event",
+                        "name": "kind",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
                         "description": "next_cursor of the previous page",
                         "name": "cursor",
@@ -1704,7 +1714,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns at most 20 records of one of the caller's agents, ordered pinned first, then the decayed score, then recency. This is the one ordering the injection prompt uses and search does not: pinned rows here are exempt from decay. Every returned row counts as injected, recorded at most once per UTC day.",
+                "description": "One round trip for a turn's head: state is the current state board (null when the pair has none yet) and memories are at most 20 fact rows of one of the caller's agents, ordered pinned first, then the decayed score, then recency. This is the one ordering the injection prompt uses and search does not: pinned rows here are exempt from decay. Events are never injected. Every returned memory row counts as injected, recorded at most once per UTC day.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1730,10 +1740,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/api.MemoryDTO"
-                            }
+                            "$ref": "#/definitions/api.MemoryPromptResponse"
                         }
                     },
                     "400": {
@@ -1801,6 +1808,183 @@ const docTemplate = `{
                                 "$ref": "#/definitions/api.MemoryDTO"
                             }
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/memory/state": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the current state board of one of the caller's agents. A pair that has never been written answers 404 NOT_FOUND: an agent without a state is not an error, it simply has nothing to show.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory"
+                ],
+                "summary": "Get the state board",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Agent ID",
+                        "name": "agent_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.AgentStateDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Upserts the state board of one of the caller's agents. The agent may write here, unlike memory, which only the user deletes. version, when sent, is the version the caller read: a write carrying a version the row no longer holds answers 409 STATE_CONFLICT and changes nothing, so a stale writer cannot silently undo a newer board. Omitting version overwrites whatever is stored. content is markdown, at most 2000 characters, and blank is refused: DELETE removes the board.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "memory"
+                ],
+                "summary": "Overwrite the state board",
+                "parameters": [
+                    {
+                        "description": "State to store",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.PutAgentStateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.AgentStateDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Hard deletes the state board of one of the caller's agents. The next write starts again at version 1.",
+                "tags": [
+                    "memory"
+                ],
+                "summary": "Delete the state board",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Agent ID",
+                        "name": "agent_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -4737,6 +4921,33 @@ const docTemplate = `{
                 }
             }
         },
+        "api.AgentStateDTO": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "content": {
+                    "type": "string",
+                    "example": "Working on the memory rework."
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string",
+                    "example": "TUI"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 7
+                }
+            }
+        },
         "api.ChangePasswordRequest": {
             "type": "object",
             "properties": {
@@ -4819,6 +5030,14 @@ const docTemplate = `{
                         "reply",
                         "style"
                     ]
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "fact",
+                        "event"
+                    ],
+                    "example": "fact"
                 },
                 "occurred_at": {
                     "type": "string"
@@ -5097,6 +5316,14 @@ const docTemplate = `{
                         "style"
                     ]
                 },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "fact",
+                        "event"
+                    ],
+                    "example": "fact"
+                },
                 "last_used_at": {
                     "type": "string"
                 },
@@ -5148,6 +5375,14 @@ const docTemplate = `{
                         "style"
                     ]
                 },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "fact",
+                        "event"
+                    ],
+                    "example": "fact"
+                },
                 "last_used_at": {
                     "type": "string"
                 },
@@ -5182,6 +5417,20 @@ const docTemplate = `{
                 "next_cursor": {
                     "type": "string",
                     "example": ""
+                }
+            }
+        },
+        "api.MemoryPromptResponse": {
+            "type": "object",
+            "properties": {
+                "memories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.MemoryDTO"
+                    }
+                },
+                "state": {
+                    "$ref": "#/definitions/api.AgentStateDTO"
                 }
             }
         },
@@ -5333,6 +5582,27 @@ const docTemplate = `{
                 "agent_id": {
                     "type": "string",
                     "example": "5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                }
+            }
+        },
+        "api.PutAgentStateRequest": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "content": {
+                    "type": "string",
+                    "example": "Working on the memory rework."
+                },
+                "source": {
+                    "type": "string",
+                    "example": "TUI"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 7
                 }
             }
         },
@@ -6002,6 +6272,7 @@ const docTemplate = `{
                 "INVALID_CONTENT",
                 "IMMUTABLE_FIELD",
                 "PINNED_LIMIT",
+                "STATE_CONFLICT",
                 "AGENT_AMBIGUOUS",
                 "PROVIDER_AMBIGUOUS",
                 "LAST_SUPERUSER",
@@ -6016,6 +6287,7 @@ const docTemplate = `{
                 "InvalidContent",
                 "ImmutableField",
                 "PinnedLimit",
+                "StateConflict",
                 "AgentAmbiguous",
                 "ProviderAmbiguous",
                 "LastSuperuser",
