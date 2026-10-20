@@ -47,6 +47,18 @@ Unique index `(user_id, provider_id)` —— 每個用戶對每條 provider 最�
 
 全部需要 `Authorization: Bearer <access_token>`。
 
+## 代理呼叫模型
+
+| 方法 | 路徑 | Body | 說明 |
+|---|---|---|---|
+| POST | `/api/chat` | OpenAI `POST /v1/chat/completions` 嘅 body，加一個 `provider_id` | 由 server 代打上游，`api_key` 唔會回客戶端 |
+
+- `provider_id` 必填，其餘欄位原樣送去 `api_base` 去尾斜線 + `/chat/completions`。
+- `model` 唔填或者係空字串，用 provider 自己嘅 `model_name`。
+- `stream: true` 時上游 SSE 逐段 relay，唔會 buffer 到最後。
+- 可見性同 `GET /api/providers/{uuid}` 一致：自己嘅或者人哋公用嘅，其他一律 `404`。
+- 上游嘅 status / headers / body 原樣回，`401`、`429` 唔會譯成 data cloud 自己嘅 error code。上游連唔到或者 `api_base` 唔係合法 URL 回 `502 BAD_GATEWAY`。
+
 ## 規則
 
 - **每個 provider 屬於 token 對應嘅用戶**（`user_id`）—— `api_key` 係憑證。`PUT` / `DELETE /api/providers/{uuid}` 一律帶 `user_id = <token 用戶>`，只有擁有者改得；用其他用戶嘅 `uuid` 回 `404`（唔回 `403`，避免枚舉出 id）。

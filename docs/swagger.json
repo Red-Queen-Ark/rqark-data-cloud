@@ -1053,6 +1053,70 @@
                 }
             }
         },
+        "/chat": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Forwards an OpenAI chat completion to the provider named by provider_id and relays the provider's response as it arrives, including a server-sent event stream when stream is true. The provider's api_key is added server-side. The provider's status, headers and body are returned unchanged, so an upstream 401 or 429 reaches the caller as it was sent.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "Chat through a stored provider",
+                "parameters": [
+                    {
+                        "description": "OpenAI chat completion body, plus provider_id",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ChatRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/groups": {
             "get": {
                 "security": [
@@ -4954,6 +5018,50 @@
                 }
             }
         },
+        "api.ChatRequest": {
+            "type": "object",
+            "properties": {
+                "messages": {
+                    "description": "Messages is required and forwarded unchanged.",
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "model": {
+                    "description": "Model is forwarded as it arrives. When it is absent or empty, the\nprovider's own model_name is sent instead.",
+                    "type": "string",
+                    "example": "deepseek-v4-pro"
+                },
+                "provider_id": {
+                    "description": "ProviderID names the provider whose credential and api_base the call uses.",
+                    "type": "string",
+                    "example": "7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "reasoning_effort": {
+                    "type": "string",
+                    "example": "high"
+                },
+                "stream": {
+                    "description": "Stream asks the provider for a server-sent event stream. The events are\nrelayed as they arrive.",
+                    "type": "boolean",
+                    "example": true
+                },
+                "stream_options": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "tools": {
+                    "description": "Tools, StreamOptions and ReasoningEffort are forwarded unchanged.",
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                }
+            }
+        },
         "api.CreateAPIKeyRequest": {
             "type": "object",
             "properties": {
@@ -6269,6 +6377,7 @@
                 "AGENT_AMBIGUOUS",
                 "PROVIDER_AMBIGUOUS",
                 "LAST_SUPERUSER",
+                "BAD_GATEWAY",
                 "INTERNAL"
             ],
             "x-enum-varnames": [
@@ -6284,6 +6393,7 @@
                 "AgentAmbiguous",
                 "ProviderAmbiguous",
                 "LastSuperuser",
+                "BadGateway",
                 "Internal"
             ]
         },
@@ -6477,6 +6587,10 @@
         {
             "description": "Todo items owned by the authenticated user.",
             "name": "todos"
+        },
+        {
+            "description": "Model calls proxied through a stored provider, so that the provider credential never leaves the service.",
+            "name": "chat"
         }
     ]
 }

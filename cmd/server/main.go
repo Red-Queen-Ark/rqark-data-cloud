@@ -61,6 +61,8 @@ import (
 // @tag.description			Standard operating procedures owned by the authenticated user.
 // @tag.name					todos
 // @tag.description			Todo items owned by the authenticated user.
+// @tag.name					chat
+// @tag.description			Model calls proxied through a stored provider, so that the provider credential never leaves the service.
 
 // @securityDefinitions.apikey	BearerAuth
 // @in							header
