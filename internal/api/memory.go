@@ -190,7 +190,7 @@ func toMemoryDetailDTO(memory *repository.Memory) MemoryDetailDTO {
 // ListMemory returns one keyset page of the caller's memory.
 //
 //	@Summary		List memory
-//	@Description	Returns the caller's memory records ordered by occurred_at descending, then id descending. agent_id narrows the page to one of the caller's own agents; leaving it out covers every agent. The page continues from cursor, which is the next_cursor of the previous response. Rows are not ordered by score: score depends on now(), so a cursor built from it would drift and repeat or skip rows between pages.
+//	@Description	Returns the caller's memory records ordered by occurred_at descending, then id descending. agent_id narrows the page to one agent the caller may use, its own or a public one; leaving it out covers every agent. The page continues from cursor, which is the next_cursor of the previous response. Rows are not ordered by score: score depends on now(), so a cursor built from it would drift and repeat or skip rows between pages.
 //	@Tags			memory
 //	@Security		BearerAuth
 //	@Produce		json
@@ -424,7 +424,7 @@ func DeleteMemory(c *gin.Context) {
 // SearchMemory returns the most relevant memory records of one agent.//
 //
 //	@Summary		Search memory
-//	@Description	Returns at most 20 records of one of the caller's agents. Rows are ranked by how many of the requested keywords they carry, then by the decayed score, then by recency; pinned is ignored here and only orders the injection prompt. query matches content or a keyword as a substring. at bounds occurred_at from above, so asking what the user wanted on a date means at plus keywords, not at alone. Every returned row counts as one hit, recorded at most once per UTC day.
+//	@Description	Returns at most 20 records of one agent the caller may use. Rows are ranked by how many of the requested keywords they carry, then by the decayed score, then by recency; pinned is ignored here and only orders the injection prompt. query matches content or a keyword as a substring. at bounds occurred_at from above, so asking what the user wanted on a date means at plus keywords, not at alone. Every returned row counts as one hit, recorded at most once per UTC day.
 //	@Tags			memory
 //	@Security		BearerAuth
 //	@Accept			json
@@ -466,7 +466,7 @@ func SearchMemory(c *gin.Context) {
 // carries for one agent.
 //
 //	@Summary		Memory injection prompt
-//	@Description	One round trip for a turn's head: state is the current state board (null when the pair has none yet) and memories are at most 20 fact rows of one of the caller's agents, ordered pinned first, then the decayed score, then recency. This is the one ordering the injection prompt uses and search does not: pinned rows here are exempt from decay. Events are never injected. Every returned memory row counts as injected, recorded at most once per UTC day.
+//	@Description	One round trip for a turn's head: state is the current state board (null when the pair has none yet) and memories are at most 20 fact rows of one agent the caller may use, ordered pinned first, then the decayed score, then recency. This is the one ordering the injection prompt uses and search does not: pinned rows here are exempt from decay. Events are never injected. Every returned memory row counts as injected, recorded at most once per UTC day.
 //	@Tags			memory
 //	@Security		BearerAuth
 //	@Accept			json
@@ -517,7 +517,7 @@ func PromptMemory(c *gin.Context) {
 // GetAgentState returns the state board of one agent.
 //
 //	@Summary		Get the state board
-//	@Description	Returns the current state board of one of the caller's agents. A pair that has never been written answers 404 NOT_FOUND: an agent without a state is not an error, it simply has nothing to show.
+//	@Description	Returns the current state board of one agent the caller may use. A pair that has never been written answers 404 NOT_FOUND: an agent without a state is not an error, it simply has nothing to show.
 //	@Tags			memory
 //	@Security		BearerAuth
 //	@Produce		json
@@ -550,7 +550,7 @@ func GetAgentState(c *gin.Context) {
 // PutAgentState overwrites the state board of one agent.
 //
 //	@Summary		Overwrite the state board
-//	@Description	Upserts the state board of one of the caller's agents. The agent may write here, unlike memory, which only the user deletes. version, when sent, is the version the caller read: a write carrying a version the row no longer holds answers 409 STATE_CONFLICT and changes nothing, so a stale writer cannot silently undo a newer board. Omitting version overwrites whatever is stored. content is markdown, at most 2000 characters, and blank is refused: DELETE removes the board.
+//	@Description	Upserts the state board of one agent the caller may use. The agent may write here, unlike memory, which only the user deletes. version, when sent, is the version the caller read: a write carrying a version the row no longer holds answers 409 STATE_CONFLICT and changes nothing, so a stale writer cannot silently undo a newer board. Omitting version overwrites whatever is stored. content is markdown, at most 2000 characters, and blank is refused: DELETE removes the board.
 //	@Tags			memory
 //	@Security		BearerAuth
 //	@Accept			json
@@ -592,7 +592,7 @@ func PutAgentState(c *gin.Context) {
 // DeleteAgentState removes the state board of one agent.
 //
 //	@Summary		Delete the state board
-//	@Description	Hard deletes the state board of one of the caller's agents. The next write starts again at version 1.
+//	@Description	Hard deletes the state board of one agent the caller may use. The next write starts again at version 1.
 //	@Tags			memory
 //	@Security		BearerAuth
 //	@Param			agent_id	query	string	true	"Agent ID"	format(uuid)
