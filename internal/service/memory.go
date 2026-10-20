@@ -50,14 +50,14 @@ type CreateMemoryInput struct {
 }
 
 // ListMemories returns one page of the caller's memory, newest occurrence
-// first. A non-nil agentID is checked against the caller's own agents first, so
-// another user's agent is reported as not found.
+// first. A non-nil agentID is checked against the agents the caller may use
+// first, so an agent it may not use is reported as not found.
 func ListMemories(ctx context.Context, userID uuid.UUID, agentID *uuid.UUID, kind string, cursor *repository.MemoryCursor, limit int) ([]repository.Memory, error) {
 	if kind != "" && !repository.ValidMemoryKind(kind) {
 		return nil, &ValidationError{Message: "kind must be 'fact' or 'event'."}
 	}
 	if agentID != nil {
-		if err := requireOwnedAgent(ctx, userID, *agentID); err != nil {
+		if err := requireUsableAgent(ctx, userID, *agentID); err != nil {
 			return nil, err
 		}
 	}
@@ -69,9 +69,9 @@ func GetMemory(ctx context.Context, userID, id uuid.UUID) (*repository.Memory, e
 	return repository.GetMemory(ctx, config.DB, userID, id)
 }
 
-// CreateMemory validates and stores one memory record. The agent must belong to
-// the caller: memory is never written into another user's pair, even when the
-// agent is shared.
+// CreateMemory validates and stores one memory record. The agent must be one
+// the caller may use: memory is never written into another user's pair, even
+// when the agent is shared, so a shared agent stores the caller's own row.
 func CreateMemory(ctx context.Context, userID uuid.UUID, in CreateMemoryInput) (*repository.Memory, error) {
 	kind := in.Kind
 	if kind == "" {
@@ -84,7 +84,7 @@ func CreateMemory(ctx context.Context, userID uuid.UUID, in CreateMemoryInput) (
 	if err != nil {
 		return nil, err
 	}
-	if err := requireOwnedAgent(ctx, userID, in.AgentID); err != nil {
+	if err := requireUsableAgent(ctx, userID, in.AgentID); err != nil {
 		return nil, err
 	}
 
@@ -129,7 +129,7 @@ func DeleteMemory(ctx context.Context, userID, id uuid.UUID) error {
 // decayed score, then the most recent. Events are never injected. Every returned row counts as injected, so
 // its hit counter is bumped once per UTC day before the rows are handed back.
 func PromptMemories(ctx context.Context, userID, agentID uuid.UUID) ([]repository.Memory, error) {
-	if err := requireOwnedAgent(ctx, userID, agentID); err != nil {
+	if err := requireUsableAgent(ctx, userID, agentID); err != nil {
 		return nil, err
 	}
 
@@ -144,7 +144,7 @@ func PromptMemories(ctx context.Context, userID, agentID uuid.UUID) ([]repositor
 // facts and events alike. Every returned row counts as injected, so its hit
 // counter is bumped once per UTC day before the rows are handed back.
 func SearchMemories(ctx context.Context, userID, agentID uuid.UUID, query string, keywords []string, at *time.Time) ([]repository.Memory, error) {
-	if err := requireOwnedAgent(ctx, userID, agentID); err != nil {
+	if err := requireUsableAgent(ctx, userID, agentID); err != nil {
 		return nil, err
 	}
 
@@ -193,14 +193,15 @@ func PruneExpiredEventsEvery(interval time.Duration) {
 	}
 }
 
-// requireOwnedAgent reports repository.ErrAgentNotFound unless agentID is one of
-// userID's own agents. A shared agent does not qualify: memory belongs to the
-// pair, and the writer of the pair is the owner.
-func requireOwnedAgent(ctx context.Context, userID, agentID uuid.UUID) error {
+// requireUsableAgent reports repository.ErrAgentNotFound unless agentID is one
+// userID may use: its own agent or a public one another user shares. A shared
+// agent qualifies because memory and state belong to the (user, agent) pair, so
+// every user writing through a shared agent writes its own row.
+func requireUsableAgent(ctx context.Context, userID, agentID uuid.UUID) error {
 	if agentID == uuid.Nil {
 		return &ValidationError{Message: "agent_id is required."}
 	}
-	_, err := repository.GetAgentByID(ctx, config.DB, userID, agentID)
+	_, err := repository.GetVisibleAgentByID(ctx, config.DB, userID, agentID)
 	return err
 }
 

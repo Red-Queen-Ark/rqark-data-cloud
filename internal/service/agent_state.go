@@ -21,19 +21,19 @@ type SetAgentStateInput struct {
 	Version *int
 }
 
-// GetAgentState returns the current state of one of the caller's agents.
+// GetAgentState returns the current state of one agent the caller may use.
 func GetAgentState(ctx context.Context, userID, agentID uuid.UUID) (*repository.AgentState, error) {
-	if err := requireOwnedAgent(ctx, userID, agentID); err != nil {
+	if err := requireUsableAgent(ctx, userID, agentID); err != nil {
 		return nil, err
 	}
 	return repository.GetAgentState(ctx, config.DB, userID, agentID)
 }
 
-// SetAgentState overwrites the state of one of the caller's agents and bumps its
+// SetAgentState overwrites the state of one agent the caller may use and bumps its
 // version. An empty content is refused: removing the state is DELETE, so a
 // blank overwrite cannot empty the board by accident.
 func SetAgentState(ctx context.Context, userID uuid.UUID, in SetAgentStateInput) (*repository.AgentState, error) {
-	if err := requireOwnedAgent(ctx, userID, in.AgentID); err != nil {
+	if err := requireUsableAgent(ctx, userID, in.AgentID); err != nil {
 		return nil, err
 	}
 	content, err := validateStateContent(in.Content, in.Source)
@@ -53,9 +53,9 @@ func SetAgentState(ctx context.Context, userID uuid.UUID, in SetAgentStateInput)
 	return repository.UpsertAgentState(ctx, config.DB, state, in.Version)
 }
 
-// DeleteAgentState removes the state of one of the caller's agents.
+// DeleteAgentState removes the state of one agent the caller may use.
 func DeleteAgentState(ctx context.Context, userID, agentID uuid.UUID) error {
-	if err := requireOwnedAgent(ctx, userID, agentID); err != nil {
+	if err := requireUsableAgent(ctx, userID, agentID); err != nil {
 		return err
 	}
 	return repository.DeleteAgentState(ctx, config.DB, userID, agentID)
