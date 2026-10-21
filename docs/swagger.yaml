@@ -108,6 +108,44 @@ definitions:
         example: correct-horse-battery
         type: string
     type: object
+  api.ChatRequest:
+    properties:
+      messages:
+        description: Messages is required and forwarded unchanged.
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      model:
+        description: |-
+          Model is forwarded as it arrives. When it is absent or empty, the
+          provider's own model_name is sent instead.
+        example: deepseek-v4-pro
+        type: string
+      provider_id:
+        description: ProviderID names the provider whose credential and api_base the
+          call uses.
+        example: 7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      reasoning_effort:
+        example: high
+        type: string
+      stream:
+        description: |-
+          Stream asks the provider for a server-sent event stream. The events are
+          relayed as they arrive.
+        example: true
+        type: boolean
+      stream_options:
+        additionalProperties: {}
+        type: object
+      tools:
+        description: Tools, StreamOptions and ReasoningEffort are forwarded unchanged.
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+    type: object
   api.CreateAPIKeyRequest:
     properties:
       expires_at:
@@ -1035,6 +1073,7 @@ definitions:
     - AGENT_AMBIGUOUS
     - PROVIDER_AMBIGUOUS
     - LAST_SUPERUSER
+    - BAD_GATEWAY
     - INTERNAL
     type: string
     x-enum-varnames:
@@ -1050,6 +1089,7 @@ definitions:
     - AgentAmbiguous
     - ProviderAmbiguous
     - LastSuperuser
+    - BadGateway
     - Internal
   utils.Error:
     properties:
@@ -1844,6 +1884,51 @@ paths:
       summary: Reset a password
       tags:
       - auth
+  /chat:
+    post:
+      consumes:
+      - application/json
+      description: Forwards an OpenAI chat completion to the provider named by provider_id
+        and relays the provider's response as it arrives, including a server-sent
+        event stream when stream is true. The provider's api_key is added server-side.
+        The provider's status, headers and body are returned unchanged, so an upstream
+        401 or 429 reaches the caller as it was sent.
+      parameters:
+      - description: OpenAI chat completion body, plus provider_id
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.ChatRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Chat through a stored provider
+      tags:
+      - chat
   /groups:
     get:
       description: Requires a bearer token. Returns groups only, never their members.
@@ -4426,3 +4511,6 @@ tags:
   name: sops
 - description: Todo items owned by the authenticated user.
   name: todos
+- description: Model calls proxied through a stored provider, so that the provider
+    credential never leaves the service.
+  name: chat

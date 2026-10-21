@@ -44,6 +44,9 @@ const (
 	ProviderAmbiguous Code = "PROVIDER_AMBIGUOUS"
 	// LastSuperuser is used when an operation would leave no active superuser.
 	LastSuperuser Code = "LAST_SUPERUSER"
+	// BadGateway is used when a provider the service proxies to cannot be
+	// reached, or its api_base is not a usable URL.
+	BadGateway Code = "BAD_GATEWAY"
 	// Internal is used for unexpected server-side failures.
 	Internal Code = "INTERNAL"
 )
@@ -62,6 +65,7 @@ var statuses = map[Code]int{
 	AgentAmbiguous:    http.StatusConflict,
 	ProviderAmbiguous: http.StatusConflict,
 	LastSuperuser:     http.StatusConflict,
+	BadGateway:        http.StatusBadGateway,
 	Internal:          http.StatusInternalServerError,
 }
 

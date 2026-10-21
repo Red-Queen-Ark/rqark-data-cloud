@@ -34,6 +34,7 @@ func APIRouter(r *gin.Engine) {
 	MemoryRouter(r)
 	SopsRouter(r)
 	TodosRouter(r)
+	ChatRouter(r)
 	// The internal routes live in their own package so that swag, which walks
 	// this one, never pulls them into the public specification.
 	internalapi.Router(r, config.InternalToken)
