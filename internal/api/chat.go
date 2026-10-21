@@ -215,6 +215,10 @@ func proxyChat(c *gin.Context, apiBase, apiKey string, payload []byte) {
 	defer response.Body.Close()
 
 	copyResponseHeaders(c.Writer.Header(), response.Header)
+	// A reverse proxy in front of this service buffers a response by default,
+	// which would hold a streamed answer until the model finished. This header
+	// is the one nginx reads to forward the response as it arrives.
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
 	c.Writer.WriteHeader(response.StatusCode)
 	relay(c.Writer, response.Body)
 }
