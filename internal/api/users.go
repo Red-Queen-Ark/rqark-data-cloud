@@ -17,15 +17,16 @@ import (
 // UserDTO is the single user representation, shared by /users/me, /users/{uuid}
 // and the group member listing.
 type UserDTO struct {
-	ID          uuid.UUID `json:"id" example:"3f1a5c1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
-	Username    string    `json:"username" example:"boss"`
-	Email       string    `json:"email" example:"boss@example.com"`
-	DisplayName string    `json:"display_name" example:"Boss"`
-	IsActive    bool      `json:"is_active" example:"true"`
-	IsStaff     bool      `json:"is_staff" example:"false"`
-	IsSuperuser bool      `json:"is_superuser" example:"true"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          uuid.UUID  `json:"id" example:"3f1a5c1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
+	Username    string     `json:"username" example:"boss"`
+	Email       string     `json:"email" example:"boss@example.com"`
+	DisplayName string     `json:"display_name" example:"Boss"`
+	IsActive    bool       `json:"is_active" example:"true"`
+	IsStaff     bool       `json:"is_staff" example:"false"`
+	IsSuperuser bool       `json:"is_superuser" example:"true"`
+	LastSeenAt  *time.Time `json:"last_seen_at"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 // MessageResponse acknowledges an operation that returns no resource.
@@ -44,6 +45,7 @@ func toUserDTO(user *repository.User) UserDTO {
 		IsActive:    user.IsActive,
 		IsStaff:     user.IsStaff,
 		IsSuperuser: user.IsSuperuser,
+		LastSeenAt:  user.LastSeenAt,
 		CreatedAt:   user.CreatedAt,
 		UpdatedAt:   user.UpdatedAt,
 	}

@@ -49,6 +49,10 @@ func do(r *gin.Engine, header string) *httptest.ResponseRecorder {
 	return recorder
 }
 
+// nopLastSeen is the recorder the tests that do not look at presence pass. It
+// keeps the middleware from caring which user was recorded.
+func nopLastSeen(context.Context, uuid.UUID) error { return nil }
+
 // activeLoader is a UserLoader that answers one active user and nothing else.
 func activeLoader(user *repository.User) UserLoader {
 	return func(_ context.Context, id uuid.UUID) (*repository.User, error) {
@@ -88,7 +92,7 @@ func TestAuthOrAPIKeyWithoutCredentials(t *testing.T) {
 	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, error) {
 		t.Error("the API key authenticator was called without a key")
 		return nil, ErrAPIKeyRejected
-	}))
+	}, nopLastSeen))
 
 	recorder := do(r, "")
 
@@ -105,7 +109,7 @@ func TestAuthOrAPIKeyWithAccessToken(t *testing.T) {
 	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, error) {
 		t.Error("the API key authenticator was called for an access token")
 		return nil, ErrAPIKeyRejected
-	}))
+	}, nopLastSeen))
 
 	recorder := do(r, "Bearer "+token(t, user, time.Minute))
 
@@ -121,7 +125,7 @@ func TestAuthOrAPIKeyWithExpiredAccessToken(t *testing.T) {
 	user := testUser()
 	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, error) {
 		return nil, ErrAPIKeyRejected
-	}))
+	}, nopLastSeen))
 
 	recorder := do(r, "Bearer "+token(t, user, -time.Minute))
 
@@ -135,7 +139,7 @@ func TestAuthOrAPIKeyWithDisabledUser(t *testing.T) {
 	user.IsActive = false
 	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, error) {
 		return nil, ErrAPIKeyRejected
-	}))
+	}, nopLastSeen))
 
 	recorder := do(r, "Bearer "+token(t, user, time.Minute))
 
@@ -155,7 +159,7 @@ func TestAuthOrAPIKeyWithAPIKey(t *testing.T) {
 	}, func(_ context.Context, presented string) (*repository.User, error) {
 		seen = presented
 		return user, nil
-	}))
+	}, nopLastSeen))
 
 	recorder := do(r, "Bearer "+raw)
 
@@ -173,7 +177,7 @@ func TestAuthOrAPIKeyWithAPIKey(t *testing.T) {
 func TestAuthOrAPIKeyWithRejectedAPIKey(t *testing.T) {
 	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(testUser()), func(context.Context, string) (*repository.User, error) {
 		return nil, ErrAPIKeyRejected
-	}))
+	}, nopLastSeen))
 
 	recorder := do(r, "Bearer rqark-9Zk2Xf1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1p")
 
@@ -188,7 +192,7 @@ func TestAuthOrAPIKeyWithRejectedAPIKey(t *testing.T) {
 func TestAuthOrAPIKeyWithFailingLookup(t *testing.T) {
 	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(testUser()), func(context.Context, string) (*repository.User, error) {
 		return nil, errors.New("database is down")
-	}))
+	}, nopLastSeen))
 
 	recorder := do(r, "Bearer rqark-9Zk2Xf1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1p")
 
@@ -198,7 +202,7 @@ func TestAuthOrAPIKeyWithFailingLookup(t *testing.T) {
 }
 
 func TestAuthRejectsAPIKey(t *testing.T) {
-	r := newTestRouter(Auth(testSecret, activeLoader(testUser())))
+	r := newTestRouter(Auth(testSecret, activeLoader(testUser()), nopLastSeen))
 
 	recorder := do(r, "Bearer rqark-9Zk2Xf1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1p")
 
@@ -211,7 +215,7 @@ func TestBearerTokenSchemeIsCaseInsensitive(t *testing.T) {
 	user := testUser()
 	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, error) {
 		return nil, ErrAPIKeyRejected
-	}))
+	}, nopLastSeen))
 
 	recorder := do(r, "bearer "+token(t, user, time.Minute))
 

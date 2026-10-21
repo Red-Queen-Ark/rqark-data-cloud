@@ -6194,6 +6194,9 @@ const docTemplate = `{
                     "type": "boolean",
                     "example": true
                 },
+                "last_seen_at": {
+                    "type": "string"
+                },
                 "updated_at": {
                     "type": "string"
                 },
