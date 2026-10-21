@@ -2520,7 +2520,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns a provider the caller may use: one it owns, or one another user shares. api_key is included, since the client needs it to reach the model. A provider the caller may not use is reported as 404.",
+                "description": "Returns a provider the caller may use: one it owns, or one another user shares. The provider's api_key is never included: the client names the provider by id and the proxy adds the key server-side. A provider the caller may not use is reported as 404.",
                 "produces": [
                     "application/json"
                 ],
@@ -5669,10 +5669,6 @@ const docTemplate = `{
                 "api_base": {
                     "type": "string",
                     "example": "https://api.deepseek.com/v1"
-                },
-                "api_key": {
-                    "type": "string",
-                    "example": "sk-rqark-0000"
                 },
                 "combine": {
                     "type": "boolean",

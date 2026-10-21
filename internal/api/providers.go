@@ -25,7 +25,6 @@ type ProviderDTO struct {
 	ID               uuid.UUID `json:"id" example:"7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	Name             string    `json:"name" example:"deepseek-v4-pro"`
 	ModelName        string    `json:"model_name" example:"deepseek-v4-pro"`
-	APIKey           string    `json:"api_key" example:"sk-rqark-0000"`
 	APIBase          string    `json:"api_base" example:"https://api.deepseek.com/v1"`
 	Priority         int       `json:"priority" example:"1"`
 	ReasoningEffort  *string   `json:"reasoning_effort" example:"high"`
@@ -147,7 +146,6 @@ func toProviderDTO(view *repository.ViewerProvider, viewerID uuid.UUID) Provider
 		ID:               provider.ID,
 		Name:             provider.Name,
 		ModelName:        provider.ModelName,
-		APIKey:           provider.APIKey,
 		APIBase:          provider.APIBase,
 		Priority:         view.EffectivePriority(viewerID),
 		ReasoningEffort:  provider.ReasoningEffort,
@@ -294,7 +292,7 @@ func CreateProvider(c *gin.Context) {
 // GetProvider returns one provider.
 //
 //	@Summary		Get a provider
-//	@Description	Returns a provider the caller may use: one it owns, or one another user shares. api_key is included, since the client needs it to reach the model. A provider the caller may not use is reported as 404.
+//	@Description	Returns a provider the caller may use: one it owns, or one another user shares. The provider's api_key is never included: the client names the provider by id and the proxy adds the key server-side. A provider the caller may not use is reported as 404.
 //	@Tags			providers
 //	@Security		BearerAuth
 //	@Produce		json

@@ -64,7 +64,8 @@ Unique index `(user_id, provider_id)` —— 每個用戶對每條 provider 最�
 ## 規則
 
 - **每個 provider 屬於 token 對應嘅用戶**（`user_id`）—— `api_key` 係憑證。`PUT` / `DELETE /api/providers/{uuid}` 一律帶 `user_id = <token 用戶>`，只有擁有者改得；用其他用戶嘅 `uuid` 回 `404`（唔回 `403`，避免枚舉出 id）。
-- **公用 provider**（`is_public = true`）—— admin（superuser）可以將自己嘅 provider 設做公用，之後其他用戶嘅 `GET /api/providers`、`GET /api/providers/models` 同 `GET /api/providers/{uuid}` 都會攞到佢（連 `api_key`，因為客戶端要靠佢連模型）。非 superuser 想設 `is_public = true` 回 `403`。
+- **公用 provider**（`is_public = true`）—— admin（superuser）可以將自己嘅 provider 設做公用，之後其他用戶嘅 `GET /api/providers`、`GET /api/providers/models` 同 `GET /api/providers/{uuid}` 都會攞到佢（唔含 `api_key`）。非 superuser 想設 `is_public = true` 回 `403`。
+- **`api_key` 只寫唔讀** —— `POST` / `PUT /api/providers` 照收 `api_key`，但 `GET`（list 同單條）一律唔會回。客戶端只傳 `provider_id` 去打 `/api/chat`，key 由 server 加。`PUT` 唔帶 `api_key` 即係保留原本嗰個。
 - **priority 分三級，永遠唔會借擁有者嗰個** —— 對你生效嘅 `priority`（回應並排 `priority_override`）依次係：你自己落嘅 override；你自己嘅 provider 就係 `providers.priority`；人哋 share 俾你、你又未排過嘅，直接係 `-99`（`UnsetProviderPriority`）。所以擁有者改自己條 `priority` 唔會搞到你個 list，`-99` 排最前係因為排序由細到大。
 - **override 只可以落喺人哋嘅 provider** —— 自己嘅 provider 用 `PUT /api/providers/{uuid}` 改 `priority`，喺 `/{uuid}/priority` 落 override 會回 `400`。睇唔到嘅 provider（唔係自己、又唔 public）一律 `404`。
 - **override 只有寫入，冇清除** —— 落咗 override 之後，呢條 provider 對你嘅次序就係你自己嗰個數；冇 endpoint 還原返 `-99`，`PUT /api/providers/{uuid}/priority` 只收 `priority: int`，唔收 `null`。
