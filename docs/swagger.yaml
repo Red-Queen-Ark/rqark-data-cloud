@@ -1929,6 +1929,56 @@ paths:
       summary: Chat through a stored provider
       tags:
       - chat
+  /chat/{uuid}/chat/completions:
+    post:
+      consumes:
+      - application/json
+      description: Same as POST /chat, except the provider is named by the path and
+        the body carries no provider_id. It exists so an OpenAI client can reach the
+        proxy by setting base_url to /api/chat/{uuid} and its api_key to a data cloud
+        token.
+      parameters:
+      - description: Provider ID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: OpenAI chat completion body
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Chat through a stored provider, addressed by path
+      tags:
+      - chat
   /groups:
     get:
       description: Requires a bearer token. Returns groups only, never their members.

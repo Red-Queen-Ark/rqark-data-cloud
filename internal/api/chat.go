@@ -94,21 +94,8 @@ var hopByHopHeaders = []string{
 //	@Failure		502		{object}	utils.ErrorResponse
 //	@Router			/chat [post]
 func Chat(c *gin.Context) {
-	actor, ok := middlewares.CurrentUser(c)
+	fields, ok := chatBody(c)
 	if !ok {
-		utils.Abort(c, utils.Unauthorized, "Authentication is required.")
-		return
-	}
-
-	body, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		abortBadRequest(c, "The request body could not be read.")
-		return
-	}
-
-	fields := map[string]json.RawMessage{}
-	if err := json.Unmarshal(body, &fields); err != nil {
-		abortBadRequest(c, "The request body must be a JSON object.")
 		return
 	}
 
@@ -119,6 +106,71 @@ func Chat(c *gin.Context) {
 	providerID, ok := readProviderID(fields)
 	if !ok {
 		abortBadRequest(c, "provider_id must be a UUID.")
+		return
+	}
+
+	forwardChatCompletion(c, providerID, fields)
+}
+
+// ChatByProvider proxies one chat completion to the provider the path names. The
+// body is a plain OpenAI request: the provider is where an OpenAI client would
+// put its base_url, so a caller can point the SDK at /api/chat/{uuid} and change
+// nothing else.
+//
+//	@Summary		Chat through a stored provider, addressed by path
+//	@Description	Same as POST /chat, except the provider is named by the path and the body carries no provider_id. It exists so an OpenAI client can reach the proxy by setting base_url to /api/chat/{uuid} and its api_key to a data cloud token.
+//	@Tags			chat
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			uuid	path		string			true	"Provider ID"
+//	@Param			request	body		map[string]any	true	"OpenAI chat completion body"
+//	@Success		200		{object}	map[string]any
+//	@Failure		400		{object}	utils.ErrorResponse
+//	@Failure		401		{object}	utils.ErrorResponse
+//	@Failure		404		{object}	utils.ErrorResponse
+//	@Failure		502		{object}	utils.ErrorResponse
+//	@Router			/chat/{uuid}/chat/completions [post]
+func ChatByProvider(c *gin.Context) {
+	providerID, ok := parseUUIDParam(c, "uuid")
+	if !ok {
+		return
+	}
+
+	fields, ok := chatBody(c)
+	if !ok {
+		return
+	}
+	// A body sent to this path carries no provider_id, but one that does is not
+	// an error: it is dropped rather than forwarded, like any other unknown key.
+	delete(fields, "provider_id")
+
+	forwardChatCompletion(c, providerID, fields)
+}
+
+// chatBody reads the request body as a JSON object of unparsed fields, so that
+// everything the proxy does not itself read reaches the provider as it arrived.
+func chatBody(c *gin.Context) (map[string]json.RawMessage, bool) {
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		abortBadRequest(c, "The request body could not be read.")
+		return nil, false
+	}
+
+	fields := map[string]json.RawMessage{}
+	if err := json.Unmarshal(body, &fields); err != nil {
+		abortBadRequest(c, "The request body must be a JSON object.")
+		return nil, false
+	}
+	return fields, true
+}
+
+// forwardChatCompletion resolves the provider, fills in the model the caller left
+// out and hands the call to the proxy. It is the part the two chat routes share.
+func forwardChatCompletion(c *gin.Context, providerID uuid.UUID, fields map[string]json.RawMessage) {
+	actor, ok := middlewares.CurrentUser(c)
+	if !ok {
+		utils.Abort(c, utils.Unauthorized, "Authentication is required.")
 		return
 	}
 	if _, ok := fields["messages"]; !ok {
@@ -277,4 +329,5 @@ func relay(w gin.ResponseWriter, body io.Reader) {
 func ChatRouter(r *gin.Engine) {
 	chat := r.Group("/api/chat", authOrAPIKey())
 	chat.POST("", Chat)
+	chat.POST("/:uuid/chat/completions", ChatByProvider)
 }
