@@ -52,8 +52,10 @@ Unique index `(user_id, provider_id)` —— 每個用戶對每條 provider 最�
 | 方法 | 路徑 | Body | 說明 |
 |---|---|---|---|
 | POST | `/api/chat` | OpenAI `POST /v1/chat/completions` 嘅 body，加一個 `provider_id` | 由 server 代打上游，`api_key` 唔會回客戶端 |
+| POST | `/api/chat/{uuid}/chat/completions` | 同 OpenAI `POST /v1/chat/completions` 一樣 | 同上，provider 由 path 指定 |
 
-- `provider_id` 必填，其餘欄位原樣送去 `api_base` 去尾斜線 + `/chat/completions`。
+- 兩條 route 都係同一個 proxy；path 版係為 OpenAI SDK 而設：`base_url` 設做 `{cloud_url}/api/chat/{uuid}`、`api_key` 設做 data cloud token，SDK 會自動 append `/chat/completions`。
+- `provider_id` 必填（path 版由 path 帶），其餘欄位原樣送去 `api_base` 去尾斜線 + `/chat/completions`。
 - `model` 唔填或者係空字串，用 provider 自己嘅 `model_name`。
 - `stream: true` 時上游 SSE 逐段 relay，唔會 buffer 到最後。
 - 可見性同 `GET /api/providers/{uuid}` 一致：自己嘅或者人哋公用嘅，其他一律 `404`。
