@@ -975,6 +975,8 @@ definitions:
       is_superuser:
         example: true
         type: boolean
+      last_seen_at:
+        type: string
       updated_at:
         type: string
       username:

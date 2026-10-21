@@ -31,9 +31,22 @@ type User struct {
 	IsActive       bool      `gorm:"not null;default:true"`
 	IsStaff        bool      `gorm:"not null;default:false"`
 	IsSuperuser    bool      `gorm:"not null;default:false"`
-	CreatedAt      time.Time `gorm:"not null"`
-	UpdatedAt      time.Time `gorm:"not null"`
+
+	// LastSeenAt is the last time the user made a request with an access
+	// token; see TouchLastSeen. It stays nil for a user who has only ever
+	// called the API with a key, and for one who has never signed in since
+	// the column was added.
+	LastSeenAt *time.Time `gorm:"type:timestamptz"`
+	CreatedAt  time.Time  `gorm:"not null"`
+	UpdatedAt  time.Time  `gorm:"not null"`
 }
+
+// lastSeenResolution is how stale last_seen_at is allowed to be. A touch
+// rewrites it only once the stored value is older than this, so a client that
+// makes a burst of requests costs a single write rather than one per request.
+// The value is the column's precision in practice: last_seen_at is never meant
+// to answer "at which second", only "when was this person last around".
+const lastSeenResolution = 5 * time.Minute
 
 // TableName pins the table name to the plural used by the rest of the schema.
 func (User) TableName() string { return "users" }
@@ -136,6 +149,25 @@ func ListUsers(ctx context.Context, db *gorm.DB, filter UserFilter, limit, offse
 		return nil, 0, err
 	}
 	return users, total, nil
+}
+
+// TouchLastSeen advances users.last_seen_at to now, unless the stored value is
+// already within lastSeenResolution of now. The staleness check is part of the
+// update rather than a read followed by a write, so a burst of concurrent
+// requests collapses into one write and no request has to hold a row lock.
+//
+// The write goes through UpdateColumn so that it leaves updated_at alone:
+// updated_at answers "when did the row last change", and presence is not a
+// change to the account.
+func TouchLastSeen(ctx context.Context, db *gorm.DB, id uuid.UUID) error {
+	now := time.Now().UTC()
+	return db.WithContext(ctx).
+		Model(&User{}).
+		Where(
+			"id = ? AND (last_seen_at IS NULL OR last_seen_at < ?)",
+			id, now.Add(-lastSeenResolution),
+		).
+		UpdateColumn("last_seen_at", now).Error
 }
 
 // CountActiveSuperusers returns how many users are both active and superusers.
