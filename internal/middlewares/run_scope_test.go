@@ -60,7 +60,7 @@ func runToken(t *testing.T, user *repository.User, sessionID uuid.UUID) string {
 func TestRunTokenReachesOnlyItsOwnSession(t *testing.T) {
 	user := testUser()
 	sessionID := uuid.New()
-	r := newScopedRouter(Auth(testSecret, activeLoader(user)))
+	r := newScopedRouter(Auth(testSecret, activeLoader(user), nopLastSeen))
 	raw := runToken(t, user, sessionID)
 
 	allowed := []struct{ method, path string }{
@@ -82,7 +82,7 @@ func TestRunTokenIsRefusedEverywhereElse(t *testing.T) {
 	user := testUser()
 	sessionID := uuid.New()
 	otherID := uuid.New()
-	r := newScopedRouter(Auth(testSecret, activeLoader(user)))
+	r := newScopedRouter(Auth(testSecret, activeLoader(user), nopLastSeen))
 	raw := runToken(t, user, sessionID)
 
 	refused := []struct{ method, path string }{
@@ -110,7 +110,7 @@ func TestRunTokenOfADisabledUserIsRefused(t *testing.T) {
 	user := testUser()
 	user.IsActive = false
 	sessionID := uuid.New()
-	r := newScopedRouter(Auth(testSecret, activeLoader(user)))
+	r := newScopedRouter(Auth(testSecret, activeLoader(user), nopLastSeen))
 
 	recorder := call(r, http.MethodGet, "/api/sessions/"+sessionID.String(), runToken(t, user, sessionID))
 
@@ -127,7 +127,7 @@ func TestRunTokenIsHeldToTheWhitelistUnderAuthOrAPIKey(t *testing.T) {
 	sessionID := uuid.New()
 	r := newScopedRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, error) {
 		return nil, ErrAPIKeyRejected
-	}))
+	}, nopLastSeen))
 	raw := runToken(t, user, sessionID)
 
 	if recorder := call(r, http.MethodGet, "/api/sessions/"+sessionID.String()+"/messages", raw); recorder.Code != http.StatusOK {

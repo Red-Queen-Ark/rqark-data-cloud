@@ -58,15 +58,22 @@ func AuthenticateAPIKey(ctx context.Context, raw string) (*repository.User, erro
 	return user, err
 }
 
+// RecordLastSeen advances the user's last_seen_at. It is the hook the auth
+// middleware calls once a request has authenticated as a person, so that the
+// admin user listing can show how recently each account was in use.
+func RecordLastSeen(ctx context.Context, id uuid.UUID) error {
+	return repository.TouchLastSeen(ctx, config.DB, id)
+}
+
 // authRequired guards a route with bearer authentication.
 func authRequired() gin.HandlerFunc {
-	return middlewares.Auth([]byte(config.SecretKey), LoadUser)
+	return middlewares.Auth([]byte(config.SecretKey), LoadUser, RecordLastSeen)
 }
 
 // authOrAPIKey guards a route with bearer authentication that accepts either an
 // access token or an API key.
 func authOrAPIKey() gin.HandlerFunc {
-	return middlewares.AuthOrAPIKey([]byte(config.SecretKey), LoadUser, AuthenticateAPIKey)
+	return middlewares.AuthOrAPIKey([]byte(config.SecretKey), LoadUser, AuthenticateAPIKey, RecordLastSeen)
 }
 
 // superuserRequired guards a route with bearer authentication followed by the

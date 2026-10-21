@@ -5,6 +5,7 @@ package middlewares
 import (
 	"context"
 	"errors"
+	"log"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -30,11 +31,18 @@ type UserLoader func(ctx context.Context, id uuid.UUID) (*repository.User, error
 // ErrAPIKeyRejected whenever the key may not be used, whatever the reason.
 type APIKeyAuthenticator func(ctx context.Context, raw string) (*repository.User, error)
 
+// LastSeenRecorder records that a user was active at this moment. It is called
+// on the access token paths only: a request made with an API key never counts
+// as the user being online, because a key outlives the session it was made for
+// and may belong to a script. It is also skipped for a run-scoped token, which
+// is an agent working in the background rather than a person at a keyboard.
+type LastSeenRecorder func(ctx context.Context, id uuid.UUID) error
+
 // Auth authenticates the bearer access token, loads the user it names and
 // stores that user in the request context. A request whose token is missing,
 // invalid, expired, names an unknown user or names a disabled user is rejected
 // with 401.
-func Auth(secret []byte, load UserLoader) gin.HandlerFunc {
+func Auth(secret []byte, load UserLoader, record LastSeenRecorder) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		raw, ok := bearerToken(c.GetHeader("Authorization"))
 		if !ok {
@@ -42,7 +50,7 @@ func Auth(secret []byte, load UserLoader) gin.HandlerFunc {
 			return
 		}
 
-		user, ok := authenticateAccessToken(c, raw, secret, load)
+		user, ok := authenticateAccessToken(c, raw, secret, load, record)
 		if !ok {
 			return
 		}
@@ -58,7 +66,7 @@ func Auth(secret []byte, load UserLoader) gin.HandlerFunc {
 // key-carrying client alike. A key that cannot be used, an unknown one
 // included, is rejected with 401; an access token is checked exactly as Auth
 // checks it.
-func AuthOrAPIKey(secret []byte, load UserLoader, apiKey APIKeyAuthenticator) gin.HandlerFunc {
+func AuthOrAPIKey(secret []byte, load UserLoader, apiKey APIKeyAuthenticator, record LastSeenRecorder) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		raw, ok := bearerToken(c.GetHeader("Authorization"))
 		if !ok {
@@ -70,7 +78,7 @@ func AuthOrAPIKey(secret []byte, load UserLoader, apiKey APIKeyAuthenticator) gi
 		if utils.IsAPIKey(raw) {
 			user, ok = authenticateAPIKey(c, raw, apiKey)
 		} else {
-			user, ok = authenticateAccessToken(c, raw, secret, load)
+			user, ok = authenticateAccessToken(c, raw, secret, load, record)
 		}
 		if !ok {
 			return
@@ -103,8 +111,10 @@ func runScopeAllows(c *gin.Context, sessionID uuid.UUID) bool {
 
 // authenticateAccessToken verifies one access token and loads its user, writing
 // the matching rejection when either step fails. A run-scoped token is held to
-// its own session here, so a handler behind Auth never sees one.
-func authenticateAccessToken(c *gin.Context, raw string, secret []byte, load UserLoader) (*repository.User, bool) {
+// its own session here, so a handler behind Auth never sees one. A token that
+// gets this far has authenticated a person, so the user's last_seen_at is
+// advanced before the request runs.
+func authenticateAccessToken(c *gin.Context, raw string, secret []byte, load UserLoader, record LastSeenRecorder) (*repository.User, bool) {
 	claims, err := utils.ParseTokenClaims(raw, secret)
 	if err != nil {
 		utils.Abort(c, utils.Unauthorized, "Invalid or expired access token.")
@@ -126,11 +136,29 @@ func authenticateAccessToken(c *gin.Context, raw string, secret []byte, load Use
 		return nil, false
 	}
 
-	if claims.Scope == utils.ScopeRun && !runScopeAllows(c, claims.SessionID) {
-		utils.Abort(c, utils.Forbidden, "This token cannot be used here.")
-		return nil, false
+	if claims.Scope == utils.ScopeRun {
+		if !runScopeAllows(c, claims.SessionID) {
+			utils.Abort(c, utils.Forbidden, "This token cannot be used here.")
+			return nil, false
+		}
+		return user, true
 	}
+
+	recordLastSeen(c, record, user.ID)
 	return user, true
+}
+
+// recordLastSeen advances the user's last_seen_at and drops whatever goes
+// wrong. Presence is a side record of the request, not part of what the request
+// asked for, so a failure to write it must not turn a request that
+// authenticated correctly into an error. A nil recorder is a no-op.
+func recordLastSeen(c *gin.Context, record LastSeenRecorder, id uuid.UUID) {
+	if record == nil {
+		return
+	}
+	if err := record(c.Request.Context(), id); err != nil {
+		log.Printf("middlewares: record last seen for user %s: %v", id, err)
+	}
 }
 
 // authenticateAPIKey verifies one API key, writing the matching rejection when
