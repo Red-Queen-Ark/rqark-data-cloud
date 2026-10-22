@@ -309,7 +309,7 @@ func TestMemorySearchRanksAndCountsHits(t *testing.T) {
 		t.Fatalf("create memory: %v", err)
 	}
 
-	results, err := SearchMemories(context.Background(), user.ID, agent.ID, "", []string{"alpha", "beta"}, nil)
+	results, err := SearchMemories(context.Background(), user.ID, agent.ID, "", []string{"alpha", "beta"}, nil, nil)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -323,7 +323,7 @@ func TestMemorySearchRanksAndCountsHits(t *testing.T) {
 		t.Fatalf("hits after first search = %d,%d, want 1,1", results[0].Hits, results[1].Hits)
 	}
 
-	again, err := SearchMemories(context.Background(), user.ID, agent.ID, "", []string{"alpha", "beta"}, nil)
+	again, err := SearchMemories(context.Background(), user.ID, agent.ID, "", []string{"alpha", "beta"}, nil, nil)
 	if err != nil {
 		t.Fatalf("second search: %v", err)
 	}

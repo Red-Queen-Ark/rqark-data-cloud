@@ -66,7 +66,7 @@ func TestMemorySharedAgentKeepsPairsApart(t *testing.T) {
 		t.Fatalf("owner list = %+v, want only its own row", ownerRows)
 	}
 
-	found, err := SearchMemories(context.Background(), stranger.ID, shared.ID, "fact", nil, nil)
+	found, err := SearchMemories(context.Background(), stranger.ID, shared.ID, "fact", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("stranger search: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestMemoryPrivateAgentStaysOwnerOnly(t *testing.T) {
 	if _, err := ListMemories(context.Background(), stranger.ID, &agent.ID, "", nil, 10); !errors.Is(err, repository.ErrAgentNotFound) {
 		t.Fatalf("stranger list: expected ErrAgentNotFound, got %v", err)
 	}
-	if _, err := SearchMemories(context.Background(), stranger.ID, agent.ID, "hijack", nil, nil); !errors.Is(err, repository.ErrAgentNotFound) {
+	if _, err := SearchMemories(context.Background(), stranger.ID, agent.ID, "hijack", nil, nil, nil); !errors.Is(err, repository.ErrAgentNotFound) {
 		t.Fatalf("stranger search: expected ErrAgentNotFound, got %v", err)
 	}
 	if _, err := PromptMemories(context.Background(), stranger.ID, agent.ID); !errors.Is(err, repository.ErrAgentNotFound) {

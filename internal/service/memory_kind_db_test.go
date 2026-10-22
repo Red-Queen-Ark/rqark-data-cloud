@@ -94,7 +94,7 @@ func TestSearchMemoriesFindsEvents(t *testing.T) {
 	event := createMemoryOfKind(t, user.ID, agent.ID, repository.MemoryKindEvent, "Boss 叫 agent 修好 memory writer", time.Now().UTC())
 	createMemoryOfKind(t, user.ID, agent.ID, repository.MemoryKindFact, "Boss prefers short replies", time.Now().UTC())
 
-	results, err := SearchMemories(context.Background(), user.ID, agent.ID, "writer", nil, nil)
+	results, err := SearchMemories(context.Background(), user.ID, agent.ID, "writer", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}

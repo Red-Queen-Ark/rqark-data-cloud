@@ -142,13 +142,19 @@ func PromptMemories(ctx context.Context, userID, agentID uuid.UUID) ([]repositor
 
 // SearchMemories returns up to repository.MemorySearchLimit rows of one agent,
 // facts and events alike. Every returned row counts as injected, so its hit
-// counter is bumped once per UTC day before the rows are handed back.
-func SearchMemories(ctx context.Context, userID, agentID uuid.UUID, query string, keywords []string, at *time.Time) ([]repository.Memory, error) {
+// counter is bumped once per UTC day before the rows are handed back. from and
+// to bound occurred_at, both inclusive; a window that ends before it starts is
+// refused rather than answered with an empty page, because it is a mistake in
+// the request rather than a fact about the log.
+func SearchMemories(ctx context.Context, userID, agentID uuid.UUID, query string, keywords []string, from, to *time.Time) ([]repository.Memory, error) {
+	if from != nil && to != nil && to.Before(*from) {
+		return nil, &ValidationError{Message: "to must not be before from."}
+	}
 	if err := requireUsableAgent(ctx, userID, agentID); err != nil {
 		return nil, err
 	}
 
-	memories, err := repository.SearchMemories(ctx, config.DB, userID, agentID, strings.TrimSpace(query), keywords, at)
+	memories, err := repository.SearchMemories(ctx, config.DB, userID, agentID, strings.TrimSpace(query), keywords, from, to)
 	if err != nil {
 		return nil, err
 	}

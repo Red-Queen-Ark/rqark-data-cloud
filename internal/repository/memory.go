@@ -384,9 +384,9 @@ const memoryScore = `(m.hits + 1) * power(0.5, GREATEST(0, EXTRACT(epoch FROM no
 // SearchMemories returns up to MemorySearchLimit rows of one (user, agent) pair.
 // Rows are ranked by how many of keywords they carry, then by the decayed score,
 // then by recency. query is an optional substring match over content or a
-// keyword; at bounds occurred_at from above and is how a caller asks for what
-// the user said before a given moment.
-func SearchMemories(ctx context.Context, db *gorm.DB, userID, agentID uuid.UUID, query string, keywords []string, at *time.Time) ([]Memory, error) {
+// keyword. A non-nil from or to bounds occurred_at on that side, both inclusive,
+// which is how a caller asks for one stretch of the log rather than all of it.
+func SearchMemories(ctx context.Context, db *gorm.DB, userID, agentID uuid.UUID, query string, keywords []string, from, to *time.Time) ([]Memory, error) {
 	// The keyword list travels as its text[] literal rather than as a slice: GORM
 	// expands a slice argument into one placeholder per element, which would
 	// turn ANY(?) into ANY($1,$2,...).
@@ -406,9 +406,13 @@ func SearchMemories(ctx context.Context, db *gorm.DB, userID, agentID uuid.UUID,
 			OR EXISTS (SELECT 1 FROM unnest(m.keywords) AS k WHERE position(lower(?) in lower(k)) > 0))`
 		args = append(args, query, query)
 	}
-	if at != nil {
+	if from != nil {
+		sql += ` AND m.occurred_at >= ?`
+		args = append(args, *from)
+	}
+	if to != nil {
 		sql += ` AND m.occurred_at <= ?`
-		args = append(args, *at)
+		args = append(args, *to)
 	}
 
 	sql += ` ORDER BY keyword_hits DESC, ` + memoryScore + ` DESC, m.occurred_at DESC, m.id DESC LIMIT ?`

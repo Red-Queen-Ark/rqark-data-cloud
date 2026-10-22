@@ -93,13 +93,25 @@ type PromptMemoryRequest struct {
 }
 
 // SearchMemoryRequest is the body of POST /api/memory/search. Every field but
-// agent_id is optional; at bounds occurred_at and is not a request for a single
-// row.
+// agent_id is optional. from and to bound occurred_at, both inclusive, so a
+// caller can ask for one stretch of the log; at is the older spelling of to and
+// is kept so a client that has not been updated keeps working.
 type SearchMemoryRequest struct {
 	AgentID  uuid.UUID  `json:"agent_id" example:"5c9d3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	Query    string     `json:"query" example:"reply"`
 	Keywords []string   `json:"keywords" example:"reply,style"`
+	From     *time.Time `json:"from" example:"2026-09-01T00:00:00Z"`
+	To       *time.Time `json:"to" example:"2026-09-30T23:59:59Z"`
 	At       *time.Time `json:"at"`
+}
+
+// upperBound is the end of the window the caller asked for: to when it sent one,
+// otherwise at. Sending both is not an error; to is the newer name and wins.
+func (r SearchMemoryRequest) upperBound() *time.Time {
+	if r.To != nil {
+		return r.To
+	}
+	return r.At
 }
 
 // AgentStateDTO is the state board of one (user, agent) pair in its wire form.
@@ -424,7 +436,7 @@ func DeleteMemory(c *gin.Context) {
 // SearchMemory returns the most relevant memory records of one agent.//
 //
 //	@Summary		Search memory
-//	@Description	Returns at most 20 records of one agent the caller may use. Rows are ranked by how many of the requested keywords they carry, then by the decayed score, then by recency; pinned is ignored here and only orders the injection prompt. query matches content or a keyword as a substring. at bounds occurred_at from above, so asking what the user wanted on a date means at plus keywords, not at alone. Every returned row counts as one hit, recorded at most once per UTC day.
+//	@Description	Returns at most 20 records of one agent the caller may use. Rows are ranked by how many of the requested keywords they carry, then by the decayed score, then by recency; pinned is ignored here and only orders the injection prompt. query matches content or a keyword as a substring. from and to bound occurred_at, both inclusive, so one call can ask for a stretch of the log (a month, a week) instead of everything; at is the older name for to and still works. Every returned row counts as one hit, recorded at most once per UTC day.
 //	@Tags			memory
 //	@Security		BearerAuth
 //	@Accept			json
@@ -449,7 +461,7 @@ func SearchMemory(c *gin.Context) {
 		return
 	}
 
-	memories, err := service.SearchMemories(c.Request.Context(), actor.ID, request.AgentID, request.Query, request.Keywords, request.At)
+	memories, err := service.SearchMemories(c.Request.Context(), actor.ID, request.AgentID, request.Query, request.Keywords, request.From, request.upperBound())
 	if err != nil {
 		abortError(c, err)
 		return
