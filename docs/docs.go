@@ -1913,7 +1913,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns at most 20 records of one agent the caller may use. Rows are ranked by how many of the requested keywords they carry, then by the decayed score, then by recency; pinned is ignored here and only orders the injection prompt. query matches content or a keyword as a substring. at bounds occurred_at from above, so asking what the user wanted on a date means at plus keywords, not at alone. Every returned row counts as one hit, recorded at most once per UTC day.",
+                "description": "Returns at most 20 records of one agent the caller may use. Rows are ranked by how many of the requested keywords they carry, then by the decayed score, then by recency; pinned is ignored here and only orders the injection prompt. query matches content or a keyword as a substring. from and to bound occurred_at, both inclusive, so one call can ask for a stretch of the log (a month, a week) instead of everything; at is the older name for to and still works. Every returned row counts as one hit, recorded at most once per UTC day.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5843,6 +5843,10 @@ const docTemplate = `{
                 "at": {
                     "type": "string"
                 },
+                "from": {
+                    "type": "string",
+                    "example": "2026-09-01T00:00:00Z"
+                },
                 "keywords": {
                     "type": "array",
                     "items": {
@@ -5856,6 +5860,10 @@ const docTemplate = `{
                 "query": {
                     "type": "string",
                     "example": "reply"
+                },
+                "to": {
+                    "type": "string",
+                    "example": "2026-09-30T23:59:59Z"
                 }
             }
         },
