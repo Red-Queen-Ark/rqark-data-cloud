@@ -130,7 +130,17 @@ func ForgotPassword(ctx context.Context, email string) error {
 		return err
 	}
 
-	sendResetLink(user.Email, config.ResetPasswordURL+"?token="+token)
+	link := config.ResetPasswordURL + "?token=" + token
+	message, err := passwordResetMessage(user.Email, user.Username, config.ProjectName, link, resetTokenTTL)
+	if err != nil {
+		return err
+	}
+	// A mail that cannot be delivered must not change the answer: the endpoint
+	// replies 204 whether or not the address exists, and a failure here would
+	// answer 500 for exactly the addresses that do exist.
+	if err := mailer.Send(ctx, message); err != nil {
+		log.Printf("service: send password reset mail to %s: %v", user.Email, err)
+	}
 	return nil
 }
 
@@ -201,10 +211,4 @@ func newOpaqueToken() (string, error) {
 func hashToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
-}
-
-// sendResetLink delivers the reset link. No mail transport is configured, so
-// the link is written to the server log instead of an outbox.
-func sendResetLink(email, link string) {
-	log.Printf("service: password reset link for %s: %s", email, link)
 }
