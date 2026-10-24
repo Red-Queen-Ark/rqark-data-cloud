@@ -607,6 +607,11 @@ definitions:
         example: 7
         type: integer
     type: object
+  api.PutSystemConfigRequest:
+    properties:
+      value:
+        type: object
+    type: object
   api.PutUserConfigRequest:
     properties:
       value:
@@ -740,6 +745,21 @@ definitions:
       next_cursor:
         example: ""
         type: string
+    type: object
+  api.SystemConfigDTO:
+    properties:
+      created_at:
+        type: string
+      id:
+        example: 3f9a1c7e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      key:
+        example: login_page_style
+        type: string
+      updated_at:
+        type: string
+      value:
+        type: object
     type: object
   api.SystemConfigResponse:
     properties:
@@ -3557,6 +3577,117 @@ paths:
       summary: OpenAPI specification (YAML)
       tags:
       - swagger
+  /system-config:
+    get:
+      description: Returns every deployment-wide config entry, ordered by key. Readable
+        by any signed-in user because a client needs settings such as a theme; not
+        paginated, since the client treats the set as one config file. Never put secrets
+        here.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.SystemConfigDTO'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List system config
+      tags:
+      - system-config
+  /system-config/{key}:
+    delete:
+      description: Hard delete of one deployment-wide config entry.
+      parameters:
+      - description: Config key
+        in: path
+        name: key
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a system config entry
+      tags:
+      - system-config
+    put:
+      consumes:
+      - application/json
+      description: 'Upserts one deployment-wide config entry: the value of an existing
+        key is overwritten, a key that does not exist is created. Superuser only,
+        because one write applies to every user.'
+      parameters:
+      - description: Config key
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: Config value
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.PutSystemConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SystemConfigDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Set a system config entry
+      tags:
+      - system-config
   /system/config:
     get:
       description: Returns the settings that apply to the whole deployment. Unauthenticated,

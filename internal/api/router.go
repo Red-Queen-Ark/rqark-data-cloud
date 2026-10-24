@@ -30,6 +30,7 @@ func APIRouter(r *gin.Engine) {
 	SessionsRouter(r)
 	APIKeysRouter(r)
 	UserConfigsRouter(r)
+	SystemConfigsRouter(r)
 	AgentDefaultsRouter(r)
 	TasksRouter(r)
 	MemoryRouter(r)
@@ -162,6 +163,8 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.NotFound, "API key not found.")
 	case errors.Is(err, repository.ErrUserConfigNotFound):
 		utils.Abort(c, utils.NotFound, "User config not found.")
+	case errors.Is(err, repository.ErrSystemConfigNotFound):
+		utils.Abort(c, utils.NotFound, "System config not found.")
 	case errors.Is(err, repository.ErrAgentDefaultNotFound):
 		utils.Abort(c, utils.NotFound, "Agent default not found.")
 	case errors.Is(err, repository.ErrTodoNotFound):

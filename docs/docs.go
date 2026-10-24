@@ -3483,6 +3483,172 @@ const docTemplate = `{
                 }
             }
         },
+        "/system-config": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns every deployment-wide config entry, ordered by key. Readable by any signed-in user because a client needs settings such as a theme; not paginated, since the client treats the set as one config file. Never put secrets here.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-config"
+                ],
+                "summary": "List system config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.SystemConfigDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/system-config/{key}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Upserts one deployment-wide config entry: the value of an existing key is overwritten, a key that does not exist is created. Superuser only, because one write applies to every user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system-config"
+                ],
+                "summary": "Set a system config entry",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Config key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Config value",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.PutSystemConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SystemConfigDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Hard delete of one deployment-wide config entry.",
+                "tags": [
+                    "system-config"
+                ],
+                "summary": "Delete a system config entry",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Config key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/system/config": {
             "get": {
                 "description": "Returns the settings that apply to the whole deployment. Unauthenticated, so the login page can read it. It holds nothing user specific and nothing secret.",
@@ -5808,6 +5974,14 @@ const docTemplate = `{
                 }
             }
         },
+        "api.PutSystemConfigRequest": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "object"
+                }
+            }
+        },
         "api.PutUserConfigRequest": {
             "type": "object",
             "properties": {
@@ -5995,6 +6169,28 @@ const docTemplate = `{
                 "next_cursor": {
                     "type": "string",
                     "example": ""
+                }
+            }
+        },
+        "api.SystemConfigDTO": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "3f9a1c7e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "key": {
+                    "type": "string",
+                    "example": "login_page_style"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "object"
                 }
             }
         },
