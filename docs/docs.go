@@ -999,6 +999,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
                     "409": {
                         "description": "Conflict",
                         "schema": {
@@ -3472,6 +3478,26 @@ const docTemplate = `{
                         "description": "Swagger 2.0 document as YAML",
                         "schema": {
                             "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/system/config": {
+            "get": {
+                "description": "Returns the settings that apply to the whole deployment. Unauthenticated, so the login page can read it. It holds nothing user specific and nothing secret.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "System configuration",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SystemConfigResponse"
                         }
                     }
                 }
@@ -5972,6 +5998,16 @@ const docTemplate = `{
                 }
             }
         },
+        "api.SystemConfigResponse": {
+            "type": "object",
+            "properties": {
+                "allow_self_registration": {
+                    "description": "AllowSelfRegistration mirrors ALLOW_SELF_REGISTRATION. When it is false the\nclient hides its \"create one\" link, because the endpoint behind it would\nanswer 403.",
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
         "api.TaskDTO": {
             "type": "object",
             "properties": {
@@ -6621,6 +6657,10 @@ const docTemplate = `{
         {
             "description": "OpenAPI specification endpoints.",
             "name": "swagger"
+        },
+        {
+            "description": "Deployment-wide settings a client reads before logging in.",
+            "name": "system"
         },
         {
             "description": "User accounts.",

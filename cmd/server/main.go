@@ -35,6 +35,8 @@ import (
 // @tag.description			Build version of the running service.
 // @tag.name					swagger
 // @tag.description			OpenAPI specification endpoints.
+// @tag.name					system
+// @tag.description			Deployment-wide settings a client reads before logging in.
 // @tag.name					users
 // @tag.description			User accounts.
 // @tag.name					groups

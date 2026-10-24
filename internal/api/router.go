@@ -21,6 +21,7 @@ func APIRouter(r *gin.Engine) {
 	PingRouter(r)
 	VersionRouter(r)
 	SwaggerRouter(r)
+	SystemRouter(r)
 	AuthRouter(r)
 	UsersRouter(r)
 	GroupsRouter(r)
