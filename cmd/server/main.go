@@ -81,6 +81,12 @@ func main() {
 	go service.PruneExpiredEventsEvery(24 * time.Hour)
 	config.InitRedis()
 
+	sender, err := service.MailerFromConfig()
+	if err != nil {
+		log.Fatalf("main: mail: %v", err)
+	}
+	service.SetMailer(sender)
+
 	r := gin.Default()
 	api.APIRouter(r)
 

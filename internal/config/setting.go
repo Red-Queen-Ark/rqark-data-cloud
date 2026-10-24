@@ -25,6 +25,18 @@ var (
 	// off by default: the service is meant for an internal deployment where an
 	// admin creates the accounts.
 	AllowSelfRegistration bool
+	// The mail settings below follow Django's EMAIL_* configuration, including
+	// the console default: a checkout that sets nothing writes mail to the log
+	// instead of trying to reach a server that is not there.
+	EmailBackend      string
+	EmailHost         string
+	EmailPort         int
+	EmailHostUser     string
+	EmailHostPassword string
+	EmailUseTLS       bool
+	EmailUseSSL       bool
+	EmailTimeout      time.Duration
+	DefaultFromEmail  string
 	// TaskAtGrace is how late an "at" task may still be dispatched. A task whose
 	// instant passed longer ago than this is recorded as missed instead of run.
 	TaskAtGrace time.Duration
@@ -59,6 +71,15 @@ func init() {
 	AccessTokenTTL = 60 * time.Minute
 	RefreshTokenTTL = 720 * time.Hour
 	AllowSelfRegistration = GetEnvBool("ALLOW_SELF_REGISTRATION", false)
+	EmailBackend = GetEnv("EMAIL_BACKEND", "console")
+	EmailHost = GetEnv("EMAIL_HOST", "")
+	EmailPort = GetEnvInt("EMAIL_PORT", 25)
+	EmailHostUser = GetEnv("EMAIL_HOST_USER", "")
+	EmailHostPassword = GetEnv("EMAIL_HOST_PASSWORD", "")
+	EmailUseTLS = GetEnvBool("EMAIL_USE_TLS", false)
+	EmailUseSSL = GetEnvBool("EMAIL_USE_SSL", false)
+	EmailTimeout = GetEnvDuration("EMAIL_TIMEOUT", 10*time.Second)
+	DefaultFromEmail = GetEnv("DEFAULT_FROM_EMAIL", "webmaster@localhost")
 	TaskAtGrace = GetEnvDuration("TASK_AT_GRACE", 300*time.Second)
 
 	InternalToken = GetEnv("INTERNAL_TOKEN", "")

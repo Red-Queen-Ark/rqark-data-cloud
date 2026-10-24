@@ -158,7 +158,7 @@ Rotate 用 `GETDEL auth:rt:{sha256(token)}`，舊 token 讀一次就冇，唔可
 
 `POST /api/auth/forgot-password` 流程：
 1. 靜默查 email（唔論搵唔搵到都回 `204`）
-2. 如果 user 存在 + `is_active = true`：`GETDEL`／`DEL` 舊 reset key → `SETEX` 新嘅兩個 key → 發 email 去 `{RESET_PASSWORD_URL}?token={token}`
+2. 如果 user 存在 + `is_active = true`：`GETDEL`／`DEL` 舊 reset key → `SETEX` 新嘅兩個 key → 用 mailer 寄去 `{RESET_PASSWORD_URL}?token={token}`
 3. 如果 user 唔存在或停用，跳過，照回 `204`
 
 `POST /api/auth/reset-password` 流程：
@@ -172,3 +172,34 @@ Rotate 用 `GETDEL auth:rt:{sha256(token)}`，舊 token 讀一次就冇，唔可
 **Reset token 失敗條件（全部回同一個 `400`）：** token 無效 / 過期 / 已使用。唔透露原因。
 
 Step 1 已經消耗 token。如果 step 3 DB 失敗，用戶要重新走一次 `forgot-password` —— 呢個係刻意選擇（一次性優先於容錯）。
+## 郵件（SMTP）
+
+設定名跟 Django 的 `EMAIL_*`，所以熟悉 Django 的人不用重新學一套。
+
+| 變數 | 預設 | 說明 |
+|---|---|---|
+| `EMAIL_BACKEND` | `console` | `console`（寫入 server log）、`smtp`（真正寄出）、`dummy`（丟棄） |
+| `EMAIL_HOST` | 空 | `smtp` 必填，空就啟動失敗 |
+| `EMAIL_PORT` | `25` | 587 配 `EMAIL_USE_TLS`，465 配 `EMAIL_USE_SSL` |
+| `EMAIL_HOST_USER` | 空 | 空即不做 AUTH |
+| `EMAIL_HOST_PASSWORD` | 空 | |
+| `EMAIL_USE_TLS` | `false` | STARTTLS（先明文再升級） |
+| `EMAIL_USE_SSL` | `false` | 一開始就是 TLS |
+| `EMAIL_TIMEOUT` | `10` | 秒。Django 預設是無 timeout，這裡給 10 秒，免得一個卡住的 SMTP 拖住請求 |
+| `DEFAULT_FROM_EMAIL` | `webmaster@localhost` | From |
+| `RESET_PASSWORD_URL` | 空 | 重設頁的完整公開網址，`?token=` 由服務自己接上 |
+
+**跟 Django 唯一不同的地方：預設 `EMAIL_BACKEND=console`，不是 `smtp`。** 沒有設定的 checkout 若照 Django 去連 `localhost:25`，`forgot-password` 只會每次寄信失敗。用 console 的話，連結會出現在 server log，開發與內網試用照樣走得通；正式部署把它設成 `smtp` 才算真正可用。
+
+`EMAIL_USE_TLS` 與 `EMAIL_USE_SSL` 同時設 `true` 會在啟動時報錯（`log.Fatalf`），不會靜靜地選一個。
+
+### 重設密碼信
+
+- 主旨：`Password reset for {PROJECT_NAME}`。
+- `multipart/alternative`：純文字 + 簡單 HTML（一個按鈕加一條後備網址）。
+- 非 ASCII 的主旨用 RFC 2047 編碼，非 ASCII 的內文用 base64，避免依賴伺服器支援 8-bit。
+- 模板在 `internal/service/templates/password_reset.{txt,html}`，用 `go:embed` 打包，執行時不需外部檔案。
+
+### 寄信失敗怎麼辦
+
+`forgot-password` 仍然回 `204`，錯誤只寫入 log。原因：這個 endpoint 對「email 存在」與「email 不存在」必須回同一個答案，若寄信失敗回 `500`，就等於用 500 洩漏哪些 email 存在。代價是寄不出去時使用者以為寄了 —— 所以 log 一定要有人看，或者直接看 SMTP 伺服器端。
