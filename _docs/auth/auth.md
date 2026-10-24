@@ -5,7 +5,8 @@
 |---|---|---|---|
 | POST | `/api/auth/login` | `{ "login": str, "password": str }` | 帳密換 token（login 接受 username 或 email） |
 | POST | `/api/auth/refresh` | `{ "refresh_token": str }` | 換新 access + refresh，舊 refresh 即廢 |
-| POST | `/api/auth/register` | `{ "username", "email", "password", "display_name" }` | 回 `201`，唔發 token。用於未註冊用戶自行註冊 |
+| POST | `/api/auth/register` | `{ "username", "email", "password", "display_name" }` | 回 `201`，唔發 token。受 `ALLOW_SELF_REGISTRATION` 控制，預設關閉時回 `403` |
+| GET | `/api/system/config` | — | 公開，回 `{ "allow_self_registration": bool }`。前端登入頁用它決定顯示唔顯示「自行註冊」 |
 | POST | `/api/auth/forgot-password` | `{ "email": str }` | 回 `204`，唔話俾人知 email 存唔存在 |
 | POST | `/api/auth/reset-password` | `{ "token": str, "new_password": str }` | 改密碼，唔撤銷任何 token |
 
@@ -67,6 +68,7 @@ Request（JSON）：`{ "login": str, "password": str }`
 | Token 讀取來源 | `Authorization: Bearer <token>` header |
 | JWT subject | `sub` claim 存 user ID |
 | Reset link | `{RESET_PASSWORD_URL}?token={token}`，`RESET_PASSWORD_URL` 由環境變數注入 |
+| 自行註冊 | `ALLOW_SELF_REGISTRATION`，預設 `false`。內部部署由 admin 開帳號，所以未設都唔可以自己註冊 |
 
 ### `sub` claim
 

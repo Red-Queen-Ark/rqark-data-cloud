@@ -21,6 +21,10 @@ var (
 	ResetPasswordURL string
 	AccessTokenTTL   time.Duration
 	RefreshTokenTTL  time.Duration
+	// AllowSelfRegistration controls whether POST /api/auth/register works. It is
+	// off by default: the service is meant for an internal deployment where an
+	// admin creates the accounts.
+	AllowSelfRegistration bool
 	// TaskAtGrace is how late an "at" task may still be dispatched. A task whose
 	// instant passed longer ago than this is recorded as missed instead of run.
 	TaskAtGrace time.Duration
@@ -54,6 +58,7 @@ func init() {
 	ResetPasswordURL = GetEnv("RESET_PASSWORD_URL", "")
 	AccessTokenTTL = 60 * time.Minute
 	RefreshTokenTTL = 720 * time.Hour
+	AllowSelfRegistration = GetEnvBool("ALLOW_SELF_REGISTRATION", false)
 	TaskAtGrace = GetEnvDuration("TASK_AT_GRACE", 300*time.Second)
 
 	InternalToken = GetEnv("INTERNAL_TOKEN", "")
@@ -73,6 +78,16 @@ func GetEnv(key, fallback string) string {
 
 func GetEnvInt(key string, fallback int) int {
 	v, err := strconv.Atoi(GetEnv(key, ""))
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+// GetEnvBool reads a boolean from the environment. An unset, empty or
+// unparseable value falls back, the same way GetEnvInt does.
+func GetEnvBool(key string, fallback bool) bool {
+	v, err := strconv.ParseBool(GetEnv(key, ""))
 	if err != nil {
 		return fallback
 	}

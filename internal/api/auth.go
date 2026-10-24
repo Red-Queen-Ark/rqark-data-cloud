@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/service"
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
 )
@@ -123,10 +124,16 @@ func Refresh(c *gin.Context) {
 //	@Param			request	body		RegisterRequest	true	"Account to create"
 //	@Success		201		{object}	UserDTO
 //	@Failure		400		{object}	utils.ErrorResponse
+//	@Failure		403		{object}	utils.ErrorResponse
 //	@Failure		409		{object}	utils.ErrorResponse
 //	@Failure		500		{object}	utils.ErrorResponse
 //	@Router			/auth/register [post]
 func Register(c *gin.Context) {
+	if !config.AllowSelfRegistration {
+		utils.Abort(c, utils.Forbidden, "Self-registration is disabled.")
+		return
+	}
+
 	var request RegisterRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		abortBadRequest(c, "Malformed request body.")

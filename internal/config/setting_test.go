@@ -33,3 +33,29 @@ func TestGetEnvDuration(t *testing.T) {
 		})
 	}
 }
+
+// TestGetEnvBool covers the switch that gates self-registration: only a value
+// strconv.ParseBool accepts counts, everything else falls back.
+func TestGetEnvBool(t *testing.T) {
+	cases := map[string]bool{
+		"":      false,
+		"true":  true,
+		"1":     true,
+		"TRUE":  true,
+		"false": false,
+		"0":     false,
+		"yes":   false,
+		" ":     false,
+	}
+
+	for value, want := range cases {
+		t.Run(value, func(t *testing.T) {
+			const key = "TEST_GET_ENV_BOOL"
+			t.Setenv(key, value)
+
+			if got := GetEnvBool(key, false); got != want {
+				t.Errorf("GetEnvBool(%q) = %v, want %v", value, got, want)
+			}
+		})
+	}
+}
