@@ -17,6 +17,7 @@ const (
 	maxModelNameLen     = 255
 	maxProviderAPIKey   = 255
 	maxProviderAPIBase  = 255
+	reasoningEffortLow  = "low"
 	reasoningEffortHigh = "high"
 	reasoningEffortMax  = "max"
 	thinkingEnabled     = "enabled"
@@ -333,8 +334,8 @@ func validateProviderAPIBase(apiBase string) error {
 
 // validateReasoningEffort checks the reasoning_effort enum.
 func validateReasoningEffort(value string) error {
-	if value != reasoningEffortHigh && value != reasoningEffortMax {
-		return &ValidationError{Message: `reasoning_effort must be "high" or "max".`}
+	if value != reasoningEffortLow && value != reasoningEffortHigh && value != reasoningEffortMax {
+		return &ValidationError{Message: `reasoning_effort must be "low", "high" or "max".`}
 	}
 	return nil
 }
