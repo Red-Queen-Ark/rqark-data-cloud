@@ -10,7 +10,7 @@
 | `api_key` | string(255) | |
 | `api_base` | string(255) | |
 | `priority` | integer | 擁有者自己嘅排序，唔會傳去其他用戶 |
-| `reasoning_effort` | string(16) | enum：`high` / `max`，nullable |
+| `reasoning_effort` | string(16) | enum：`low` / `high` / `max`，nullable |
 | `thinking` | string(16) | enum：`enabled` / `disabled`，nullable |
 | `temperature` | float | nullable |
 | `top_p` | float | nullable |
@@ -40,7 +40,7 @@ Unique index `(user_id, provider_id)` —— 每個用戶對每條 provider 最�
 |---|---|---|---|
 | GET | `/api/providers` | — | 列出你可使用嘅 provider：自己嘅加其他人公用嘅 |
 | GET | `/api/providers/{uuid}` | — | 取得單一 provider（自己嘅或者人哋公用嘅） |
-| POST | `/api/providers` | `{ "model_name": str, "api_key": str, "api_base": str, "priority": int, "name"?: str, "reasoning_effort"?: "high"/"max", "thinking"?: "enabled"/"disabled", "temperature"?: float, "top_p"?: float, "seed"?: int, "frequency_penalty"?: float, "presence_penalty"?: float, "combine"?: bool, "is_public"?: bool }` | 建立 provider |
+| POST | `/api/providers` | `{ "model_name": str, "api_key": str, "api_base": str, "priority": int, "name"?: str, "reasoning_effort"?: "low"/"high"/"max", "thinking"?: "enabled"/"disabled", "temperature"?: float, "top_p"?: float, "seed"?: int, "frequency_penalty"?: float, "presence_penalty"?: float, "combine"?: bool, "is_public"?: bool }` | 建立 provider |
 | PUT | `/api/providers/{uuid}` | 同 POST，未帶入的欄位不變更 | 更新 provider（只有擁有者） |
 | DELETE | `/api/providers/{uuid}` | — | 刪除 provider（只有擁有者） |
 | PUT | `/api/providers/{uuid}/priority` | `{ "priority": int }` | 設定自己對一條人哋公用嘅 provider 嘅 priority override（未設過就係 `-99`） |
