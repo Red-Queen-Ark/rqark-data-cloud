@@ -25,7 +25,7 @@ func serveChat(t *testing.T, apiBase, apiKey, payload string) *httptest.Response
 	context.Request.Header.Set("Content-Type", "application/json")
 	context.Request.Header.Set("Authorization", "Bearer data-cloud-token")
 
-	proxyChat(context, apiBase, apiKey, []byte(payload))
+	_, _ = proxyChat(context, apiBase, apiKey, []byte(payload), false)
 	return recorder
 }
 
@@ -155,7 +155,7 @@ func TestProxyChatStreamsWithoutBuffering(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		proxyChat(context, upstream.URL, "sk-provider", []byte(`{"messages":[],"stream":true}`))
+		_, _ = proxyChat(context, upstream.URL, "sk-provider", []byte(`{"messages":[],"stream":true}`), true)
 		close(done)
 	}()
 

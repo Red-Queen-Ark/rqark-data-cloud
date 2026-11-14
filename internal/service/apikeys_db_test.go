@@ -160,7 +160,7 @@ func TestAuthenticateAPIKeyAcceptsLiveKey(t *testing.T) {
 	owner := testKeyOwner(t, db)
 	key, plaintext := newTestKey(t, owner, nil)
 
-	user, err := AuthenticateAPIKey(context.Background(), plaintext)
+	user, _, err := AuthenticateAPIKey(context.Background(), plaintext)
 	if err != nil {
 		t.Fatalf("AuthenticateAPIKey: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestAuthenticateAPIKeyRejectsUnknownKey(t *testing.T) {
 	db := testDatabase(t)
 	testKeyOwner(t, db)
 
-	_, err := AuthenticateAPIKey(context.Background(), "rqark-9Zk2Xf1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1p")
+	_, _, err := AuthenticateAPIKey(context.Background(), "rqark-9Zk2Xf1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1p")
 	if !errors.Is(err, ErrInvalidAPIKey) {
 		t.Errorf("AuthenticateAPIKey = %v, want %v", err, ErrInvalidAPIKey)
 	}
@@ -193,7 +193,7 @@ func TestAuthenticateAPIKeyRejectsDisabledKey(t *testing.T) {
 		t.Fatalf("UpdateAPIKey: %v", err)
 	}
 
-	if _, err := AuthenticateAPIKey(context.Background(), plaintext); !errors.Is(err, ErrInvalidAPIKey) {
+	if _, _, err := AuthenticateAPIKey(context.Background(), plaintext); !errors.Is(err, ErrInvalidAPIKey) {
 		t.Errorf("AuthenticateAPIKey = %v, want %v", err, ErrInvalidAPIKey)
 	}
 
@@ -207,7 +207,7 @@ func TestAuthenticateAPIKeyRejectsDisabledKey(t *testing.T) {
 	if _, err := UpdateAPIKey(context.Background(), owner.ID, key.ID, UpdateAPIKeyInput{IsActive: &enabled}); err != nil {
 		t.Fatalf("re-enable: %v", err)
 	}
-	if _, err := AuthenticateAPIKey(context.Background(), plaintext); err != nil {
+	if _, _, err := AuthenticateAPIKey(context.Background(), plaintext); err != nil {
 		t.Errorf("AuthenticateAPIKey after re-enable: %v", err)
 	}
 }
@@ -232,7 +232,7 @@ func TestDeleteAPIKeyRevokesForGood(t *testing.T) {
 		t.Error("a revoked key is still active")
 	}
 
-	if _, err := AuthenticateAPIKey(context.Background(), plaintext); !errors.Is(err, ErrInvalidAPIKey) {
+	if _, _, err := AuthenticateAPIKey(context.Background(), plaintext); !errors.Is(err, ErrInvalidAPIKey) {
 		t.Errorf("AuthenticateAPIKey = %v, want %v", err, ErrInvalidAPIKey)
 	}
 
@@ -354,7 +354,7 @@ func TestUpdateAPIKeyRenewsALapsedKey(t *testing.T) {
 			if err := db.Model(&repository.APIKey{}).Where("id = ?", key.ID).Update("expires_at", lapsed).Error; err != nil {
 				t.Fatalf("lapse key: %v", err)
 			}
-			if _, err := AuthenticateAPIKey(context.Background(), plaintext); !errors.Is(err, ErrInvalidAPIKey) {
+			if _, _, err := AuthenticateAPIKey(context.Background(), plaintext); !errors.Is(err, ErrInvalidAPIKey) {
 				t.Fatalf("AuthenticateAPIKey on the lapsed key = %v, want %v", err, ErrInvalidAPIKey)
 			}
 			if reload(t, db, owner, key.ID).RevokedAt == nil {
@@ -376,7 +376,7 @@ func TestUpdateAPIKeyRenewsALapsedKey(t *testing.T) {
 			if stored.RevokedAt != nil || stored.RevokedMessage != nil || !stored.IsActive {
 				t.Errorf("stored key after the renewal = revoked_at %v, message %v, is_active %v", stored.RevokedAt, stored.RevokedMessage, stored.IsActive)
 			}
-			if _, err := AuthenticateAPIKey(context.Background(), plaintext); err != nil {
+			if _, _, err := AuthenticateAPIKey(context.Background(), plaintext); err != nil {
 				t.Errorf("AuthenticateAPIKey after the renewal: %v", err)
 			}
 		})
@@ -394,7 +394,7 @@ func TestUpdateAPIKeyRefusesToSwitchALapsedKeyOn(t *testing.T) {
 	if err := db.Model(&repository.APIKey{}).Where("id = ?", key.ID).Update("expires_at", lapsed).Error; err != nil {
 		t.Fatalf("lapse key: %v", err)
 	}
-	if _, err := AuthenticateAPIKey(context.Background(), plaintext); !errors.Is(err, ErrInvalidAPIKey) {
+	if _, _, err := AuthenticateAPIKey(context.Background(), plaintext); !errors.Is(err, ErrInvalidAPIKey) {
 		t.Fatalf("AuthenticateAPIKey on the lapsed key = %v, want %v", err, ErrInvalidAPIKey)
 	}
 
@@ -420,7 +420,7 @@ func TestUpdateAPIKeyRefusesToSwitchALapsedKeyOn(t *testing.T) {
 	if renewed.IsActive {
 		t.Error("the explicit switch off was ignored")
 	}
-	if _, err := AuthenticateAPIKey(context.Background(), plaintext); !errors.Is(err, ErrInvalidAPIKey) {
+	if _, _, err := AuthenticateAPIKey(context.Background(), plaintext); !errors.Is(err, ErrInvalidAPIKey) {
 		t.Errorf("AuthenticateAPIKey with the key switched off = %v, want %v", err, ErrInvalidAPIKey)
 	}
 }
@@ -462,7 +462,7 @@ func TestAuthenticateAPIKeyRejectsDisabledOwner(t *testing.T) {
 		t.Fatalf("disable user: %v", err)
 	}
 
-	if _, err := AuthenticateAPIKey(context.Background(), plaintext); !errors.Is(err, ErrInvalidAPIKey) {
+	if _, _, err := AuthenticateAPIKey(context.Background(), plaintext); !errors.Is(err, ErrInvalidAPIKey) {
 		t.Errorf("AuthenticateAPIKey = %v, want %v", err, ErrInvalidAPIKey)
 	}
 }
@@ -482,7 +482,7 @@ func TestAuthenticateAPIKeyRevokesLapsedKey(t *testing.T) {
 		t.Fatal("the key was revoked without being used")
 	}
 
-	if _, err := AuthenticateAPIKey(context.Background(), plaintext); !errors.Is(err, ErrInvalidAPIKey) {
+	if _, _, err := AuthenticateAPIKey(context.Background(), plaintext); !errors.Is(err, ErrInvalidAPIKey) {
 		t.Errorf("AuthenticateAPIKey = %v, want %v", err, ErrInvalidAPIKey)
 	}
 
@@ -500,7 +500,7 @@ func TestAuthenticateAPIKeyRecordsUseAtMostOncePerInterval(t *testing.T) {
 	owner := testKeyOwner(t, db)
 	key, plaintext := newTestKey(t, owner, nil)
 
-	if _, err := AuthenticateAPIKey(context.Background(), plaintext); err != nil {
+	if _, _, err := AuthenticateAPIKey(context.Background(), plaintext); err != nil {
 		t.Fatalf("AuthenticateAPIKey: %v", err)
 	}
 
@@ -509,7 +509,7 @@ func TestAuthenticateAPIKeyRecordsUseAtMostOncePerInterval(t *testing.T) {
 	if err := db.Model(&repository.APIKey{}).Where("id = ?", key.ID).Update("last_used_at", inside).Error; err != nil {
 		t.Fatalf("set last_used_at: %v", err)
 	}
-	if _, err := AuthenticateAPIKey(context.Background(), plaintext); err != nil {
+	if _, _, err := AuthenticateAPIKey(context.Background(), plaintext); err != nil {
 		t.Fatalf("AuthenticateAPIKey: %v", err)
 	}
 	if got := reload(t, db, owner, key.ID).LastUsedAt; !got.Equal(inside) {
@@ -521,7 +521,7 @@ func TestAuthenticateAPIKeyRecordsUseAtMostOncePerInterval(t *testing.T) {
 	if err := db.Model(&repository.APIKey{}).Where("id = ?", key.ID).Update("last_used_at", stale).Error; err != nil {
 		t.Fatalf("set last_used_at: %v", err)
 	}
-	if _, err := AuthenticateAPIKey(context.Background(), plaintext); err != nil {
+	if _, _, err := AuthenticateAPIKey(context.Background(), plaintext); err != nil {
 		t.Fatalf("AuthenticateAPIKey: %v", err)
 	}
 	if got := reload(t, db, owner, key.ID).LastUsedAt; !got.After(stale) {
@@ -627,7 +627,7 @@ func TestAPIKeyOfAnotherOwnerIsNotFound(t *testing.T) {
 	}
 
 	// The key of the real owner is untouched.
-	if _, err := AuthenticateAPIKey(context.Background(), plaintext); err != nil {
+	if _, _, err := AuthenticateAPIKey(context.Background(), plaintext); err != nil {
 		t.Errorf("AuthenticateAPIKey after the cross-owner attempts: %v", err)
 	}
 }

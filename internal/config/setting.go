@@ -53,6 +53,9 @@ var (
 	// TaskRunTokenBuffer is added to TaskRunTimeout to size the run token, so the
 	// token outlives the run it was issued for.
 	TaskRunTokenBuffer time.Duration
+	// UsageIncludeStreamUsage makes the chat proxy ask a streaming provider for
+	// a usage object. Off means streamed calls record no usage.
+	UsageIncludeStreamUsage bool
 )
 
 func init() {
@@ -88,6 +91,13 @@ func init() {
 	// The stale sweep runs on the same clock as the run timeout, so a run is only
 	// swept once it has had its whole allowance plus a grace period.
 	TaskRunStaleAfter = GetEnvDuration("TASK_RUN_STALE_AFTER", TaskRunTimeout+TaskRunTokenBuffer)
+
+	// UsageIncludeStreamUsage makes the chat proxy ask a streaming provider for
+	// a usage object. It is on by default because every OpenAI-compatible
+	// stream omits usage otherwise; a deployment in front of an upstream that
+	// rejects the parameter can turn it off and lose streamed usage instead of
+	// losing the stream.
+	UsageIncludeStreamUsage = GetEnvBool("USAGE_INCLUDE_STREAM_USAGE", true)
 }
 
 func GetEnv(key, fallback string) string {

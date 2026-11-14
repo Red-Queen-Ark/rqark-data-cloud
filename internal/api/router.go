@@ -52,13 +52,17 @@ func LoadUser(ctx context.Context, id uuid.UUID) (*repository.User, error) {
 // AuthenticateAPIKey resolves the user behind an API key. It is the hook the
 // auth middleware calls when a request carries a key instead of an access
 // token. A key that may not be used is reported as a rejected credential;
-// anything else is a server-side failure.
-func AuthenticateAPIKey(ctx context.Context, raw string) (*repository.User, error) {
-	user, err := service.AuthenticateAPIKey(ctx, raw)
+// anything else is a server-side failure. The key id is the only part of the
+// key that reaches the request context.
+func AuthenticateAPIKey(ctx context.Context, raw string) (*repository.User, uuid.UUID, error) {
+	user, key, err := service.AuthenticateAPIKey(ctx, raw)
 	if errors.Is(err, service.ErrInvalidAPIKey) {
-		return nil, middlewares.ErrAPIKeyRejected
+		return nil, uuid.Nil, middlewares.ErrAPIKeyRejected
 	}
-	return user, err
+	if err != nil {
+		return nil, uuid.Nil, err
+	}
+	return user, key.ID, nil
 }
 
 // RecordLastSeen advances the user's last_seen_at. It is the hook the auth

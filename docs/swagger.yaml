@@ -110,6 +110,16 @@ definitions:
     type: object
   api.ChatRequest:
     properties:
+      agent_id:
+        description: AgentID is the agent that issued the call, for usage attribution.
+        example: 8e2f5d3b-2b2b-4b2b-9b2b-2b2b2b2b2b2b
+        type: string
+      is_compaction:
+        description: |-
+          IsCompaction marks a call that summarised the conversation to shrink the
+          context. It is reported by the caller and defaults to false.
+        example: false
+        type: boolean
       messages:
         description: Messages is required and forwarded unchanged.
         items:
@@ -129,6 +139,21 @@ definitions:
         type: string
       reasoning_effort:
         example: high
+        type: string
+      session_id:
+        description: |-
+          The four fields below describe the call rather than ask it. They are read
+          here and never forwarded to the provider; all are optional and a malformed
+          value is ignored rather than rejected.
+
+          SessionID is the session the call belongs to, for usage attribution.
+        example: 7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      source:
+        description: |-
+          Source is the caller's own label for itself, such as TUI or AGENT_CLOUD.
+          It is stored as reported and never reconciled against the session.
+        example: TUI
         type: string
       stream:
         description: |-

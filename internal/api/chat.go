@@ -37,6 +37,21 @@ type ChatRequest struct {
 	Tools           []map[string]any `json:"tools,omitempty"`
 	StreamOptions   map[string]any   `json:"stream_options,omitempty"`
 	ReasoningEffort string           `json:"reasoning_effort,omitempty" example:"high"`
+
+	// The four fields below describe the call rather than ask it. They are read
+	// here and never forwarded to the provider; all are optional and a malformed
+	// value is ignored rather than rejected.
+	//
+	// SessionID is the session the call belongs to, for usage attribution.
+	SessionID *uuid.UUID `json:"session_id,omitempty" example:"7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
+	// AgentID is the agent that issued the call, for usage attribution.
+	AgentID *uuid.UUID `json:"agent_id,omitempty" example:"8e2f5d3b-2b2b-4b2b-9b2b-2b2b2b2b2b2b"`
+	// Source is the caller's own label for itself, such as TUI or AGENT_CLOUD.
+	// It is stored as reported and never reconciled against the session.
+	Source string `json:"source,omitempty" example:"TUI"`
+	// IsCompaction marks a call that summarised the conversation to shrink the
+	// context. It is reported by the caller and defaults to false.
+	IsCompaction bool `json:"is_compaction,omitempty" example:"false"`
 }
 
 // chatUpstreamPath is the path a chat completion is requested on. It follows
@@ -165,6 +180,11 @@ func chatBody(c *gin.Context) (map[string]json.RawMessage, bool) {
 	return fields, true
 }
 
+// storeUsage records one call's token usage. It is a variable so that a test
+// can observe what the handler decided without a database, and so that the
+// write path stays entirely in the service layer.
+var storeUsage = service.RecordUsage
+
 // forwardChatCompletion resolves the provider, fills in the model the caller left
 // out and hands the call to the proxy. It is the part the two chat routes share.
 func forwardChatCompletion(c *gin.Context, providerID uuid.UUID, fields map[string]json.RawMessage) {
@@ -173,6 +193,10 @@ func forwardChatCompletion(c *gin.Context, providerID uuid.UUID, fields map[stri
 		utils.Abort(c, utils.Unauthorized, "Authentication is required.")
 		return
 	}
+	// The usage tags are read and removed before anything else touches the body:
+	// they describe the call, and the provider must never see them.
+	tags := readUsageTags(fields)
+
 	if _, ok := fields["messages"]; !ok {
 		abortBadRequest(c, "messages is required.")
 		return
@@ -184,24 +208,70 @@ func forwardChatCompletion(c *gin.Context, providerID uuid.UUID, fields map[stri
 		return
 	}
 
-	payload, err := json.Marshal(withModel(fields, view.ModelName))
+	fields = withModel(fields, view.ModelName)
+	withStreamUsage(fields)
+
+	stream := bodyStream(fields)
+	model := bodyModel(fields)
+
+	payload, err := json.Marshal(fields)
 	if err != nil {
 		abortInternal(c, err)
 		return
 	}
 
-	proxyChat(c, view.APIBase, view.APIKey, payload)
+	usage, recorded := proxyChat(c, view.APIBase, view.APIKey, payload, stream)
+	if !recorded || usage == nil {
+		return
+	}
+
+	keyID, hasKey := middlewares.CurrentAPIKeyID(c)
+	record := usageRecord(actor.ID, providerID, tags, model, usage, keyID, hasKey)
+
+	// The context is the request's only for what it carries. The service detaches
+	// its cancellation, so a stream that ended after the client hung up is still
+	// written.
+	storeUsage(c.Request.Context(), record)
+}
+
+// usageRecord builds the row the write path stores from what the handler knows.
+// It is separate from the handler so the mapping can be tested without a
+// database: keyID is used only when hasKey is true, which is what keeps an
+// access-token call from claiming a key.
+func usageRecord(userID, providerID uuid.UUID, tags usageTags, model string, usage *chatUsage, keyID uuid.UUID, hasKey bool) service.UsageRecord {
+	record := service.UsageRecord{
+		UserID:           userID,
+		SessionID:        tags.SessionID,
+		AgentID:          tags.AgentID,
+		ProviderID:       providerID,
+		Source:           tags.Source,
+		Model:            model,
+		PromptTokens:     usage.PromptTokens,
+		CachedTokens:     usage.cached(),
+		CompletionTokens: usage.CompletionTokens,
+		ReasoningTokens:  usage.reasoning(),
+		TotalTokens:      usage.total(),
+		IsCompaction:     tags.IsCompaction,
+	}
+	if hasKey {
+		record.APIKeyID = &keyID
+	}
+	return record
 }
 
 // proxyChat sends payload to the provider at apiBase, carrying the provider's
 // credential, and relays what comes back. The provider's status, headers and
 // body are passed on unchanged, so its own error codes reach the caller as they
 // were sent rather than being translated.
-func proxyChat(c *gin.Context, apiBase, apiKey string, payload []byte) {
+//
+// When the provider answered with a success, the usage object it carried is
+// returned so the caller can record it. The bytes relayed to the caller are the
+// same either way.
+func proxyChat(c *gin.Context, apiBase, apiKey string, payload []byte, stream bool) (*chatUsage, bool) {
 	request, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, chatUpstreamURL(apiBase), bytes.NewReader(payload))
 	if err != nil {
 		utils.Abort(c, utils.BadGateway, "The provider's api_base is not a usable URL.")
-		return
+		return nil, false
 	}
 	copyRequestHeaders(request.Header, c.Request.Header)
 	request.Header.Set("Content-Type", "application/json")
@@ -210,7 +280,7 @@ func proxyChat(c *gin.Context, apiBase, apiKey string, payload []byte) {
 	response, err := chatClient.Do(request)
 	if err != nil {
 		utils.Abort(c, utils.BadGateway, "The provider could not be reached.")
-		return
+		return nil, false
 	}
 	defer response.Body.Close()
 
@@ -220,7 +290,18 @@ func proxyChat(c *gin.Context, apiBase, apiKey string, payload []byte) {
 	// is the one nginx reads to forward the response as it arrives.
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 	c.Writer.WriteHeader(response.StatusCode)
-	relay(c.Writer, response.Body)
+
+	// Only a success is recorded: a 4xx or 5xx spent nothing the provider would
+	// bill for, and its body is an error rather than a completion.
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		relay(c.Writer, response.Body)
+		return nil, false
+	}
+
+	if stream {
+		return relayCollectingStream(c.Writer, response.Body), true
+	}
+	return relayCollectingBody(c.Writer, response.Body), true
 }
 
 // readProviderID pulls provider_id out of the body and removes it, so that it

@@ -5590,6 +5590,16 @@
         "api.ChatRequest": {
             "type": "object",
             "properties": {
+                "agent_id": {
+                    "description": "AgentID is the agent that issued the call, for usage attribution.",
+                    "type": "string",
+                    "example": "8e2f5d3b-2b2b-4b2b-9b2b-2b2b2b2b2b2b"
+                },
+                "is_compaction": {
+                    "description": "IsCompaction marks a call that summarised the conversation to shrink the\ncontext. It is reported by the caller and defaults to false.",
+                    "type": "boolean",
+                    "example": false
+                },
                 "messages": {
                     "description": "Messages is required and forwarded unchanged.",
                     "type": "array",
@@ -5611,6 +5621,16 @@
                 "reasoning_effort": {
                     "type": "string",
                     "example": "high"
+                },
+                "session_id": {
+                    "description": "The four fields below describe the call rather than ask it. They are read\nhere and never forwarded to the provider; all are optional and a malformed\nvalue is ignored rather than rejected.\n\nSessionID is the session the call belongs to, for usage attribution.",
+                    "type": "string",
+                    "example": "7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "source": {
+                    "description": "Source is the caller's own label for itself, such as TUI or AGENT_CLOUD.\nIt is stored as reported and never reconciled against the session.",
+                    "type": "string",
+                    "example": "TUI"
                 },
                 "stream": {
                     "description": "Stream asks the provider for a server-sent event stream. The events are\nrelayed as they arrive.",
