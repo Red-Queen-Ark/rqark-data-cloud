@@ -49,6 +49,8 @@ import (
 // @tag.description			Model providers owned by the authenticated user.
 // @tag.name					sessions
 // @tag.description			Sessions and their messages owned by the authenticated user.
+// @tag.name					projects
+// @tag.description			Projects: named working directories owned by the authenticated user.
 // @tag.name					api-keys
 // @tag.description			API keys owned by the authenticated user.
 // @tag.name					user-config
@@ -72,7 +74,7 @@ import (
 // @description				Bearer <access_token>
 func main() {
 	config.InitDatabase()
-	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}, &repository.Agent{}, &repository.Provider{}, &repository.Session{}, &repository.SessionMessage{}, &repository.APIKey{}, &repository.UserConfig{}, &repository.SystemConfig{}, &repository.ProviderPriority{}, &repository.AgentDefault{}, &repository.Task{}, &repository.TaskRun{}, &repository.Memory{}, &repository.AgentState{}, &repository.Sop{}, &repository.Todo{}); err != nil {
+	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}, &repository.Agent{}, &repository.Provider{}, &repository.Project{}, &repository.Session{}, &repository.SessionMessage{}, &repository.APIKey{}, &repository.UserConfig{}, &repository.SystemConfig{}, &repository.ProviderPriority{}, &repository.AgentDefault{}, &repository.Task{}, &repository.TaskRun{}, &repository.Memory{}, &repository.AgentState{}, &repository.Sop{}, &repository.Todo{}); err != nil {
 		log.Fatalf("main: automigrate: %v", err)
 	}
 	// An event row stops being worth anything after 90 days; prune once at

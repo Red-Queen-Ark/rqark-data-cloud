@@ -29,6 +29,12 @@ var (
 	// ErrSopSlugTaken is returned when a write would duplicate a slug the same
 	// user already uses.
 	ErrSopSlugTaken = errors.New("service: sop slug already taken")
+	// ErrProjectNameTaken is returned when a write would duplicate the name of a
+	// project already owned by the same user.
+	ErrProjectNameTaken = errors.New("service: project name already taken")
+	// ErrProjectPathTaken is returned when a write would duplicate the path of a
+	// project already owned by the same user.
+	ErrProjectPathTaken = errors.New("service: project path already taken")
 	// ErrTaskAgentAmbiguous is returned when a task names an agent that more
 	// than one agent the user may use carries, so the name alone does not say
 	// which one to run.
@@ -120,6 +126,10 @@ func mapWriteError(err error) error {
 		return ErrTaskNameTaken
 	case "idx_sops_user_id_slug":
 		return ErrSopSlugTaken
+	case "idx_projects_user_id_project_name":
+		return ErrProjectNameTaken
+	case "idx_projects_user_id_project_path":
+		return ErrProjectPathTaken
 	case "sessions_pkey":
 		return ErrSessionConflict
 	default:

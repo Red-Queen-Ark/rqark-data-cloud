@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -21,6 +22,7 @@ type SessionDTO struct {
 	ID        uuid.UUID                    `json:"id" example:"6b1c1f3a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	Title     string                       `json:"title" example:"Trip planning"`
 	Source    string                       `json:"source" example:"TUI"`
+	ProjectID *uuid.UUID                   `json:"project_id" example:"0f0b7f9a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	PlanItems []repository.SessionPlanItem `json:"plan_items"`
 	CreatedAt time.Time                    `json:"created_at"`
 	UpdatedAt time.Time                    `json:"updated_at"`
@@ -40,26 +42,61 @@ type SessionMessageDTO struct {
 // CreateSessionRequest is the body of POST /api/sessions. The app may bring its
 // own uuid, the one it names the session's local file after; when it does not
 // the cloud mints one. Source names the application the session was uploaded
-// from and defaults to the empty string.
+// from and defaults to the empty string. project_id names one of the caller's
+// projects; omitted or null is a session that works at the volume root.
 type CreateSessionRequest struct {
 	UUID      *string                       `json:"uuid" example:"6b1c1f3a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	Title     *string                       `json:"title" example:"Trip planning"`
 	Source    *string                       `json:"source" example:"TUI"`
+	ProjectID *string                       `json:"project_id" example:"0f0b7f9a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	PlanItems *[]repository.SessionPlanItem `json:"plan_items"`
 }
 
 // UpdateSessionRequest is the body of PUT /api/sessions/{uuid}. Every field is
 // optional and a field that is absent is left untouched. A history replaces the
-// session's messages wholesale.
+// session's messages wholesale. An explicit null for project_id detaches the
+// session from its project.
 type UpdateSessionRequest struct {
 	Title     *string                       `json:"title"`
 	Source    *string                       `json:"source"`
+	ProjectID *string                       `json:"project_id"`
 	PlanItems *[]repository.SessionPlanItem `json:"plan_items"`
 	History   *[]map[string]any             `json:"history"`
+
+	// present holds the keys the body carried. encoding/json decodes an absent
+	// key and an explicit null to the same nil pointer, and the two mean
+	// different things for project_id, so the keys are collected on the side.
+	present map[string]bool
 }
 
+// UnmarshalJSON decodes the body and records which keys it carried.
+func (r *UpdateSessionRequest) UnmarshalJSON(data []byte) error {
+	// plain has no methods, so decoding into it cannot recurse into this one.
+	type plain UpdateSessionRequest
+	var decoded plain
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(data, &keys); err != nil {
+		return err
+	}
+
+	*r = UpdateSessionRequest(decoded)
+	r.present = make(map[string]bool, len(keys))
+	for key := range keys {
+		r.present[key] = true
+	}
+	return nil
+}
+
+// provided reports whether the body carried key.
+func (r UpdateSessionRequest) provided(key string) bool { return r.present[key] }
+
 // toSessionDTO converts a stored session into its wire form. A nil plan_items
-// is reported as an empty list, mirroring the column default.
+// is reported as an empty list, mirroring the column default. A nil project_id
+// is reported as null, never as the zero uuid.
 func toSessionDTO(session *repository.Session) SessionDTO {
 	planItems := session.PlanItems
 	if planItems == nil {
@@ -69,6 +106,7 @@ func toSessionDTO(session *repository.Session) SessionDTO {
 		ID:        session.ID,
 		Title:     session.Title,
 		Source:    session.Source,
+		ProjectID: session.ProjectID,
 		PlanItems: planItems,
 		CreatedAt: session.CreatedAt,
 		UpdatedAt: session.UpdatedAt,
@@ -88,14 +126,16 @@ func toSessionMessageDTO(message *repository.SessionMessage) SessionMessageDTO {
 // ListSessions returns every session of the caller.
 //
 //	@Summary		List sessions
-//	@Description	Returns all of the caller's sessions, most recently updated first, without their messages. Not paginated: the app syncs its whole session set in one go. A source query keeps only sessions uploaded from that application; without one every source is returned.
+//	@Description	Returns all of the caller's sessions, most recently updated first, without their messages. Not paginated: the app syncs its whole session set in one go. A source query keeps only sessions uploaded from that application; without one every source is returned. A project_id query keeps only sessions that work in that project.
 //	@Tags			sessions
 //	@Security		BearerAuth
 //	@Produce		json
-//	@Param			source	query		string	false	"Keep only sessions uploaded from this application"
-//	@Success		200		{array}		SessionDTO
-//	@Failure		401		{object}	utils.ErrorResponse
-//	@Failure		500		{object}	utils.ErrorResponse
+//	@Param			source		query		string	false	"Keep only sessions uploaded from this application"
+//	@Param			project_id	query		string	false	"Keep only sessions that work in this project"	format(uuid)
+//	@Success		200			{array}		SessionDTO
+//	@Failure		400			{object}	utils.ErrorResponse
+//	@Failure		401			{object}	utils.ErrorResponse
+//	@Failure		500			{object}	utils.ErrorResponse
 //	@Router			/sessions [get]
 func ListSessions(c *gin.Context) {
 	actor, ok := middlewares.CurrentUser(c)
@@ -109,7 +149,17 @@ func ListSessions(c *gin.Context) {
 		source = &value
 	}
 
-	sessions, err := service.ListSessions(c.Request.Context(), actor.ID, source)
+	var projectID *uuid.UUID
+	if value, present := c.GetQuery("project_id"); present {
+		id, err := uuid.Parse(value)
+		if err != nil {
+			abortBadRequest(c, "project_id must be a UUID.")
+			return
+		}
+		projectID = &id
+	}
+
+	sessions, err := service.ListSessions(c.Request.Context(), actor.ID, source, projectID)
 	if err != nil {
 		abortInternal(c, err)
 		return
@@ -165,6 +215,14 @@ func CreateSession(c *gin.Context) {
 	}
 	if request.Source != nil {
 		in.Source = *request.Source
+	}
+	if request.ProjectID != nil {
+		id, err := uuid.Parse(*request.ProjectID)
+		if err != nil {
+			abortBadRequest(c, "project_id must be a UUID.")
+			return
+		}
+		in.ProjectID = &id
 	}
 	if request.PlanItems != nil {
 		in.PlanItems = *request.PlanItems
@@ -246,9 +304,20 @@ func UpdateSession(c *gin.Context) {
 		return
 	}
 
+	projectID := utils.Optional[uuid.UUID]{Set: request.provided("project_id")}
+	if request.ProjectID != nil {
+		parsed, err := uuid.Parse(*request.ProjectID)
+		if err != nil {
+			abortBadRequest(c, "project_id must be a UUID.")
+			return
+		}
+		projectID.Value = &parsed
+	}
+
 	session, err := service.UpdateSession(c.Request.Context(), actor.ID, id, service.UpdateSessionInput{
 		Title:     request.Title,
 		Source:    request.Source,
+		ProjectID: projectID,
 		PlanItems: request.PlanItems,
 		History:   request.History,
 	})

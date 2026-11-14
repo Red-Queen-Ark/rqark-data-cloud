@@ -8,6 +8,7 @@
 | `user_id` | UUID | FK → `users.id`，index，擁有者 |
 | `title` | string(255) | 預設 `''`，由 app `gen_title` 用 LLM 生成（prompt 限 8 words） |
 | `source` | string(32) | 預設 `''`，邊個應用程式上傳 |
+| `project_id` | UUID | FK → `projects.id`，`ON DELETE SET NULL`，index，nullable；`NULL` 代表在 volume 根目錄工作 |
 | `plan_items` | jsonb | 預設 `'[]'`，`[{ "id": str, "content": str, "status": str }]` |
 | `created_at` | datetime (UTC) | |
 | `updated_at` | datetime (UTC) | |
@@ -58,16 +59,16 @@ PK 係 `(session_id, seq)`。得 `role` 同 `created_at` 抽做 column（方便�
 
 | Method | Path | Request body | 說明 |
 |---|---|---|---|
-| GET | `/api/sessions` | — | 列出自己嘅 session metadata（**唔含** messages），回 array，`updated_at` 新→舊 |
-| POST | `/api/sessions` | `{ "uuid"?: str, "title"?: str, "source"?: str, "plan_items"?: [...] }` | 建立 session，回 `201` + `Location` |
+| GET | `/api/sessions` | — | 列出自己嘅 session metadata（**唔含** messages），回 array，`updated_at` 新→舊；`?source=` 只取一個來源，`?project_id=` 只取一個 project |
+| POST | `/api/sessions` | `{ "uuid"?: str, "title"?: str, "source"?: str, "project_id"?: str, "plan_items"?: [...] }` | 建立 session，回 `201` + `Location`；`project_id` 必須係自己嘅 project |
 | GET | `/api/sessions/{uuid}` | — | 取得 session metadata（**唔含** messages） |
-| PUT | `/api/sessions/{uuid}` | `{ "title"?: str, "source"?: str, "plan_items"?: [...], "history"?: [message] }`，未帶入的欄位不變更 | 更新 session；帶 `history` 就成批覆寫 messages |
+| PUT | `/api/sessions/{uuid}` | `{ "title"?: str, "source"?: str, "project_id"?: str\|null, "plan_items"?: [...], "history"?: [message] }`，未帶入的欄位不變更 | 更新 session；帶 `history` 就成批覆寫 messages；`project_id` 帶 `null` 就解除綁定 |
 | DELETE | `/api/sessions/{uuid}` | — | 連 messages 一齊刪，回 `204` |
 | GET | `/api/sessions/{uuid}/messages` | — | 回 array，`seq` 升序 |
 
 全部需要 `Authorization: Bearer <access_token>`，亦收 `rqark-` API key（同 `/api/agents`、`/api/providers` 一致：app 就係用 key 同步 session 數據）。
 
-`sessions` 系列回應即 row 減 `user_id`（`id`、`title`、`source`、`plan_items`、`created_at`、`updated_at`），唔含 `history`；`/messages` 每項係 `{ "seq": int, "role": str, "data": object, "created_at": str|null }`。
+`sessions` 系列回應即 row 減 `user_id`（`id`、`title`、`source`、`project_id`、`plan_items`、`created_at`、`updated_at`），唔含 `history`；`/messages` 每項係 `{ "seq": int, "role": str, "data": object, "created_at": str|null }`。
 
 兩個 list 都**唔分頁**，直接回 array（同 `/api/agents`、`/api/providers` 一致）。理由同 agents 一樣：呢啲係 app 當「雲端版本地檔」同步用，`JSONLStorage.load()` 本身就係一次過讀齊所有 session 同整條 history，分頁對 app 冇用；管理向清單（`api-keys` / `users` / `groups`）先出 `Page` envelope。
 
@@ -81,4 +82,5 @@ PK 係 `(session_id, seq)`。得 `role` 同 `created_at` 抽做 column（方便�
 - **`data` 原樣存** —— cloud 唔拆 message 內部結構。rqark-core 日後加 message 欄位（例如 app 現時 `to_dict()` 冇寫嘅 `usage`）唔使改 cloud schema，直接 round-trip。
 - **`created_at` / `updated_at` 由 server 管** —— request 帶咗都忽略。session 內部每條 message 自己嘅 `created_at` 照存（`data` 同 column 兩邊都有，column 版係為咗唔拆 JSON 就查得到時間）。
 - **`sessions` 係 metadata-only 讀取** —— `GET /api/sessions` 同 `GET /api/sessions/{uuid}` 都唔回 `history`，要 message 就另外拉 `/messages`，避免 list 時拉爆 payload。
+- **`project_id` 唔會靜靜雞改** —— POST／PUT 帶 `project_id` 時必須係自己嘅 project，否則回 `400`（唔係 `404`：呼叫方明確提出咗個 id，要分得清「已刪」同「唔屬於你」）。PUT 未帶入就唔郁，明確帶 `null` 就解除綁定。刪除 project 唔會刪 session，只會清空呢個欄位。
 - **跨用戶** —— session 屬於 token 對應用戶，任何 query 都帶 `user_id = <token 用戶>`；用其他用戶嘅 `uuid` 一律回 `404`。

@@ -28,6 +28,7 @@ func APIRouter(r *gin.Engine) {
 	AgentsRouter(r)
 	ProvidersRouter(r)
 	SessionsRouter(r)
+	ProjectsRouter(r)
 	APIKeysRouter(r)
 	UserConfigsRouter(r)
 	SystemConfigsRouter(r)
@@ -121,6 +122,10 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.Conflict, "Agent name is already taken.")
 	case errors.Is(err, service.ErrSopSlugTaken):
 		utils.Abort(c, utils.Conflict, "That slug is already taken.")
+	case errors.Is(err, service.ErrProjectNameTaken):
+		utils.Abort(c, utils.Conflict, "Project name is already taken.")
+	case errors.Is(err, service.ErrProjectPathTaken):
+		utils.Abort(c, utils.Conflict, "Project path is already taken.")
 	case errors.Is(err, service.ErrTaskNameTaken):
 		utils.Abort(c, utils.Conflict, "Task name is already taken.")
 	case errors.Is(err, service.ErrTaskAgentAmbiguous):
@@ -169,6 +174,8 @@ func abortError(c *gin.Context, err error) {
 		utils.Abort(c, utils.NotFound, "Agent default not found.")
 	case errors.Is(err, repository.ErrTodoNotFound):
 		utils.Abort(c, utils.NotFound, "Todo not found.")
+	case errors.Is(err, repository.ErrProjectNotFound):
+		utils.Abort(c, utils.NotFound, "Project not found.")
 	case errors.Is(err, service.ErrAPIKeyRevoked):
 		utils.Abort(c, utils.Conflict, "This API key was deleted and cannot be brought back.")
 	case errors.Is(err, service.ErrAPIKeyLapsed):

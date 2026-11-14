@@ -34,31 +34,38 @@ var sessionRoles = map[string]bool{
 // CreateSessionInput is the body accepted by POST /api/sessions. ID is the uuid
 // the app generated for the session; when it is nil the cloud mints one. Source
 // names the application the session was uploaded from; an empty string is kept
-// as the column's default.
+// as the column's default. ProjectID names the project the session works in; a
+// nil one is a session at the volume root.
 type CreateSessionInput struct {
 	ID        *uuid.UUID
 	Title     string
 	Source    string
+	ProjectID *uuid.UUID
 	PlanItems []repository.SessionPlanItem
 }
 
 // UpdateSessionInput is a partial update: a nil field is left untouched. A
-// non-nil History replaces the session's messages wholesale.
+// non-nil History replaces the session's messages wholesale. ProjectID is
+// utils.Optional so an explicit null detaches the session from its project.
 type UpdateSessionInput struct {
 	Title     *string
 	Source    *string
+	ProjectID utils.Optional[uuid.UUID]
 	PlanItems *[]repository.SessionPlanItem
 	History   *[]map[string]any
 }
 
 // CreateSession validates the title and source and stores a session under
 // userID. The session keeps the caller's uuid when one is given and the cloud
-// mints one otherwise.
+// mints one otherwise. A project_id must name one of the caller's projects.
 func CreateSession(ctx context.Context, userID uuid.UUID, in CreateSessionInput) (*repository.Session, error) {
 	if err := validateSessionTitle(in.Title); err != nil {
 		return nil, err
 	}
 	if err := validateSessionSource(in.Source); err != nil {
+		return nil, err
+	}
+	if err := checkProjectOwner(ctx, userID, in.ProjectID); err != nil {
 		return nil, err
 	}
 
@@ -67,6 +74,7 @@ func CreateSession(ctx context.Context, userID uuid.UUID, in CreateSessionInput)
 		UserID:    userID,
 		Title:     in.Title,
 		Source:    in.Source,
+		ProjectID: in.ProjectID,
 		PlanItems: in.PlanItems,
 	}
 	if in.ID != nil {
@@ -93,6 +101,11 @@ func UpdateSession(ctx context.Context, userID, id uuid.UUID, in UpdateSessionIn
 			return nil, err
 		}
 	}
+	if in.ProjectID.Set {
+		if err := checkProjectOwner(ctx, userID, in.ProjectID.Value); err != nil {
+			return nil, err
+		}
+	}
 
 	var messages []repository.SessionMessage
 	if in.History != nil {
@@ -115,6 +128,9 @@ func UpdateSession(ctx context.Context, userID, id uuid.UUID, in UpdateSessionIn
 		}
 		if in.Source != nil {
 			stored.Source = *in.Source
+		}
+		if in.ProjectID.Set {
+			stored.ProjectID = in.ProjectID.Value
 		}
 		if in.PlanItems != nil {
 			stored.PlanItems = *in.PlanItems
@@ -147,9 +163,10 @@ func DeleteSession(ctx context.Context, userID, id uuid.UUID) error {
 
 // ListSessions returns all of userID's session metadata. The list is not
 // paginated, matching the agent and provider listings. A non-nil source keeps
-// only sessions uploaded from that application; a nil one keeps every source.
-func ListSessions(ctx context.Context, userID uuid.UUID, source *string) ([]repository.Session, error) {
-	return repository.ListSessions(ctx, config.DB, userID, source)
+// only sessions uploaded from that application; a nil one keeps every source. A
+// non-nil projectID keeps only sessions that work in that project.
+func ListSessions(ctx context.Context, userID uuid.UUID, source *string, projectID *uuid.UUID) ([]repository.Session, error) {
+	return repository.ListSessions(ctx, config.DB, userID, source, projectID)
 }
 
 // GetSession loads a single session owned by userID.
