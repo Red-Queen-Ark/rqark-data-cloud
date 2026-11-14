@@ -28,11 +28,17 @@ type SessionPlanItem struct {
 // per-session file and its per-directory cache after it, so both sides have to
 // agree on the value. Source names the application the session was uploaded
 // from; it defaults to the empty string for a session that names no source.
+//
+// ProjectID says which project the session works in. A nil one is a session
+// that works at the volume root, which is what every session created before
+// projects existed does. Deleting the project clears the column rather than the
+// session: the conversation survives its directory.
 type Session struct {
 	ID        uuid.UUID         `gorm:"type:uuid;primaryKey"`
 	UserID    uuid.UUID         `gorm:"type:uuid;not null;index"`
 	Title     string            `gorm:"type:varchar(255);not null;default:''"`
 	Source    string            `gorm:"type:varchar(32);not null;default:''"`
+	ProjectID *uuid.UUID        `gorm:"type:uuid;index"`
 	PlanItems []SessionPlanItem `gorm:"serializer:json;type:jsonb;not null;default:'[]'"`
 	CreatedAt time.Time         `gorm:"not null"`
 	UpdatedAt time.Time         `gorm:"not null"`
@@ -40,6 +46,10 @@ type Session struct {
 	// User only exists to tie user_id to users.id with a foreign key. It is
 	// never loaded or written through this struct.
 	User User `gorm:"foreignKey:UserID;references:ID"`
+
+	// Project does the same for project_id. OnDelete SET NULL is what makes a
+	// deleted project detach its sessions instead of being refused.
+	Project *Project `gorm:"foreignKey:ProjectID;references:ID;constraint:OnDelete:SET NULL"`
 }
 
 // TableName pins the table name to the plural used by the rest of the schema.
@@ -69,11 +79,15 @@ func SaveSession(ctx context.Context, db *gorm.DB, session *Session) error {
 // The list is not paginated: a session is the cloud copy of one local file, and
 // the app wants the whole set at once, the same way it reads its agents. A
 // non-nil source keeps only sessions uploaded from that application; a nil one
-// keeps every source, the empty string included.
-func ListSessions(ctx context.Context, db *gorm.DB, userID uuid.UUID, source *string) ([]Session, error) {
+// keeps every source, the empty string included. A non-nil projectID keeps only
+// sessions that work in that project.
+func ListSessions(ctx context.Context, db *gorm.DB, userID uuid.UUID, source *string, projectID *uuid.UUID) ([]Session, error) {
 	query := db.WithContext(ctx).Where("user_id = ?", userID)
 	if source != nil {
 		query = query.Where("source = ?", *source)
+	}
+	if projectID != nil {
+		query = query.Where("project_id = ?", *projectID)
 	}
 	var sessions []Session
 	err := query.Order("updated_at DESC").Order("id").Find(&sessions).Error
