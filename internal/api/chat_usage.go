@@ -8,8 +8,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
 )
 
 // chatUsage is the upstream usage object of an OpenAI-compatible completion.
@@ -166,16 +164,17 @@ func bodyModel(fields map[string]json.RawMessage) string {
 
 // withStreamUsage asks the provider to include a usage object on a streamed
 // response. An OpenAI-compatible stream omits usage unless the request carries
-// stream_options.include_usage, and the server adds it so that no client has to.
+// stream_options.include_usage, and the server adds it unconditionally so that
+// no client has to know.
 //
 // It merges into whatever stream_options the caller already sent rather than
-// replacing the object, and does nothing when the call is not a stream or when
-// the deployment has turned injection off for an upstream that rejects the
-// parameter.
+// replacing the object, and does nothing when the call is not a stream. The
+// caller cannot turn it off either: the usage record belongs to the server.
+//
+// An upstream that rejects the parameter answers with its own error, which the
+// proxy relays unchanged. That call then records nothing; it does not break the
+// stream, because only a 2xx is parsed for usage.
 func withStreamUsage(fields map[string]json.RawMessage) {
-	if !config.UsageIncludeStreamUsage {
-		return
-	}
 	if !bodyStream(fields) {
 		return
 	}
