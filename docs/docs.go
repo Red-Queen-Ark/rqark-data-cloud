@@ -4703,7 +4703,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns every usage row of the caller that matches the body, newest first. It is not paginated and not aggregated: the client receives the rows and charts them itself. An empty body returns every row. api_key_name selects rows by the name of the key they were made with, and each row reports that name; a row made with an access token has none.",
+                "description": "Returns every usage row that matches the body, newest first. It is not paginated and not aggregated: the client receives the rows and charts them itself. An empty body returns every row the caller may read. A plain caller reads its own rows only and may not send user_id; a superuser reads every user's rows, and may narrow them with user_id. api_key_name selects rows by the name of the key they were made with, and each row reports that name; a row made with an access token has none.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7060,6 +7060,10 @@ const docTemplate = `{
                 "total_tokens": {
                     "type": "integer",
                     "example": 1500
+                },
+                "user_id": {
+                    "type": "string",
+                    "example": "4c2a3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
                 }
             }
         },
@@ -7096,6 +7100,11 @@ const docTemplate = `{
                 "to": {
                     "type": "string",
                     "example": "2026-12-01T00:00:00Z"
+                },
+                "user_id": {
+                    "description": "UserID restricts the listing to one user's rows. It is accepted only\nfrom a superuser: a plain caller is always scoped to itself, and a body\nthat names another user is rejected rather than silently narrowed.",
+                    "type": "string",
+                    "example": "4c2a3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
                 }
             }
         },

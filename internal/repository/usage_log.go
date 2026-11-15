@@ -25,7 +25,7 @@ type UsageLog struct {
 	// a table that only ever grows.
 	ID uuid.UUID `gorm:"type:uuid;primaryKey"`
 	// CreatedAt is when the upstream call finished, stored in UTC.
-	CreatedAt time.Time `gorm:"not null;primaryKey;index:idx_usage_user_time,priority:2;index:idx_usage_user_model,priority:3;index:idx_usage_user_key,priority:3"`
+	CreatedAt time.Time `gorm:"not null;primaryKey;index:idx_usage_user_time,priority:2;index:idx_usage_user_model,priority:3;index:idx_usage_user_key,priority:3;index:idx_usage_time"`
 
 	UserID uuid.UUID `gorm:"type:uuid;not null;index:idx_usage_user_time,priority:1;index:idx_usage_user_model,priority:1;index:idx_usage_user_key,priority:1"`
 
@@ -124,8 +124,12 @@ func SumUsageByUser(ctx context.Context, db *gorm.DB, userID uuid.UUID, from, to
 
 // UsageLogFilter narrows a usage listing. Every field is optional: a nil field
 // applies no predicate, and the ones that are set are ANDed together.
+//
+// UserID is the owner to restrict to. It is nil only for a superuser listing
+// every user's rows; the handler decides that, and a request-scoped listing
+// always sets it.
 type UsageLogFilter struct {
-	UserID       uuid.UUID
+	UserID       *uuid.UUID
 	From         *time.Time
 	To           *time.Time
 	Source       *string
@@ -144,9 +148,9 @@ type UsageLogEntry struct {
 	APIKeyName *string `gorm:"column:api_key_name"`
 }
 
-// ListUsageLogs returns every row of one user's usage that matches filter,
-// newest first. It does not paginate and does not aggregate: the caller charts
-// the rows, and a page would leave it charting a part of the range.
+// ListUsageLogs returns every usage row that matches filter, newest first. It
+// does not paginate and does not aggregate: the caller charts the rows, and a
+// page would leave it charting a part of the range.
 //
 // The join to api_keys is a left join so that a key-less row is still returned;
 // it carries no key name.
@@ -154,8 +158,11 @@ func ListUsageLogs(ctx context.Context, db *gorm.DB, filter UsageLogFilter) ([]U
 	query := db.WithContext(ctx).
 		Model(&UsageLog{}).
 		Select("usage_logs.*, api_keys.name AS api_key_name").
-		Joins("LEFT JOIN api_keys ON api_keys.id = usage_logs.api_key_id").
-		Where("usage_logs.user_id = ?", filter.UserID)
+		Joins("LEFT JOIN api_keys ON api_keys.id = usage_logs.api_key_id")
+
+	if filter.UserID != nil {
+		query = query.Where("usage_logs.user_id = ?", *filter.UserID)
+	}
 
 	if filter.From != nil {
 		query = query.Where("usage_logs.created_at >= ?", *filter.From)

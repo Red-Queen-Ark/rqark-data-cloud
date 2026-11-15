@@ -115,7 +115,7 @@ func TestListUsageLogsIsScopedToTheUser(t *testing.T) {
 	db := usageListTestDB(t)
 	owner, _ := usageListFixture(t, db)
 
-	entries, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: owner.ID})
+	entries, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: &owner.ID})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -129,13 +129,38 @@ func TestListUsageLogsIsScopedToTheUser(t *testing.T) {
 	}
 }
 
+// TestListUsageLogsWithNoUserTakesEveryUser covers the superuser listing: a nil
+// UserID drops the owner predicate, so the second user's row appears too.
+func TestListUsageLogsWithNoUserTakesEveryUser(t *testing.T) {
+	db := usageListTestDB(t)
+	owner, _ := usageListFixture(t, db)
+
+	entries, err := ListUsageLogs(context.Background(), db, UsageLogFilter{})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(entries) != 4 {
+		t.Fatalf("rows = %d, want 4", len(entries))
+	}
+	owners := map[uuid.UUID]int{}
+	for _, entry := range entries {
+		owners[entry.UserID]++
+	}
+	if owners[owner.ID] != 3 {
+		t.Fatalf("owner rows = %d, want 3", owners[owner.ID])
+	}
+	if len(owners) != 2 {
+		t.Fatalf("distinct owners = %d, want 2", len(owners))
+	}
+}
+
 // TestListUsageLogsJoinsTheKeyName covers attribution: a key row reports its
 // name, a key-less row reports none, and the name filters.
 func TestListUsageLogsJoinsTheKeyName(t *testing.T) {
 	db := usageListTestDB(t)
 	owner, _ := usageListFixture(t, db)
 
-	entries, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: owner.ID})
+	entries, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: &owner.ID})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -155,7 +180,7 @@ func TestListUsageLogsJoinsTheKeyName(t *testing.T) {
 	}
 
 	name := "laptop"
-	filtered, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: owner.ID, APIKeyName: &name})
+	filtered, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: &owner.ID, APIKeyName: &name})
 	if err != nil {
 		t.Fatalf("list by key name: %v", err)
 	}
@@ -170,7 +195,7 @@ func TestListUsageLogsFilters(t *testing.T) {
 	owner, _ := usageListFixture(t, db)
 
 	source := "AGENT_CLOUD"
-	bySource, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: owner.ID, Source: &source})
+	bySource, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: &owner.ID, Source: &source})
 	if err != nil {
 		t.Fatalf("list by source: %v", err)
 	}
@@ -179,7 +204,7 @@ func TestListUsageLogsFilters(t *testing.T) {
 	}
 
 	compaction := true
-	byCompaction, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: owner.ID, IsCompaction: &compaction})
+	byCompaction, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: &owner.ID, IsCompaction: &compaction})
 	if err != nil {
 		t.Fatalf("list by compaction: %v", err)
 	}
@@ -188,14 +213,14 @@ func TestListUsageLogsFilters(t *testing.T) {
 	}
 
 	from := time.Now().UTC().Add(-90 * time.Minute)
-	byFrom, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: owner.ID, From: &from})
+	byFrom, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: &owner.ID, From: &from})
 	if err != nil {
 		t.Fatalf("list by from: %v", err)
 	}
 	if len(byFrom) != 1 {
 		t.Fatalf("rows from the last 90 minutes = %d, want 1", len(byFrom))
 	}
-	all, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: owner.ID})
+	all, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: &owner.ID})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
