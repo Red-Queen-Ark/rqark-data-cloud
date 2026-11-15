@@ -4696,6 +4696,65 @@ const docTemplate = `{
                 }
             }
         },
+        "/usage": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns every usage row of the caller that matches the body, newest first. It is not paginated and not aggregated: the client receives the rows and charts them itself. An empty body returns every row. api_key_name selects rows by the name of the key they were made with, and each row reports that name; a row made with an access token has none.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "usage"
+                ],
+                "summary": "List usage records",
+                "parameters": [
+                    {
+                        "description": "Filters; every field is optional",
+                        "name": "query",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/api.UsageQuery"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.UsageLogDTO"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/user-config": {
             "get": {
                 "security": [
@@ -6942,6 +7001,101 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "api.UsageLogDTO": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
+                "api_key_name": {
+                    "type": "string",
+                    "example": "laptop"
+                },
+                "cached_tokens": {
+                    "type": "integer",
+                    "example": 800
+                },
+                "completion_tokens": {
+                    "type": "integer",
+                    "example": 300
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2026-11-01T09:30:00Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "0192f3a4-1a1a-7a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "is_compaction": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "model": {
+                    "type": "string",
+                    "example": "deepseek-flash"
+                },
+                "prompt_tokens": {
+                    "type": "integer",
+                    "example": 1200
+                },
+                "provider_id": {
+                    "type": "string",
+                    "example": "1b2c3d4e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "reasoning_tokens": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "session_id": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string",
+                    "example": "TUI"
+                },
+                "total_tokens": {
+                    "type": "integer",
+                    "example": 1500
+                }
+            }
+        },
+        "api.UsageQuery": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "8e2f5d3b-2b2b-4b2b-9b2b-2b2b2b2b2b2b"
+                },
+                "api_key_name": {
+                    "description": "APIKeyName selects rows by the name of the rqark API key they were made\nwith. It is a name rather than an id because that is what the caller\nknows; two keys may share a name, in which case both match.",
+                    "type": "string",
+                    "example": "laptop"
+                },
+                "from": {
+                    "description": "From and To bound created_at, half-open: from is included, to excluded.",
+                    "type": "string",
+                    "example": "2026-11-01T00:00:00Z"
+                },
+                "is_compaction": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "provider_id": {
+                    "type": "string",
+                    "example": "1b2c3d4e-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
+                },
+                "source": {
+                    "description": "Source, AgentID, ProviderID and IsCompaction select the rows the proxy\nrecorded, not the rows themselves: they narrow the listing by what the\ncaller reported at call time.",
+                    "type": "string",
+                    "example": "TUI"
+                },
+                "to": {
+                    "type": "string",
+                    "example": "2026-12-01T00:00:00Z"
                 }
             }
         },

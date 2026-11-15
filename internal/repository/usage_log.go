@@ -121,3 +121,67 @@ func SumUsageByUser(ctx context.Context, db *gorm.DB, userID uuid.UUID, from, to
 		Requests:         row.Requests,
 	}, nil
 }
+
+// UsageLogFilter narrows a usage listing. Every field is optional: a nil field
+// applies no predicate, and the ones that are set are ANDed together.
+type UsageLogFilter struct {
+	UserID       uuid.UUID
+	From         *time.Time
+	To           *time.Time
+	Source       *string
+	AgentID      *uuid.UUID
+	ProviderID   *uuid.UUID
+	IsCompaction *bool
+	APIKeyName   *string
+}
+
+// UsageLogEntry is a stored row together with the name of the key it was made
+// with. The name is NULL for a row made with an access token, and also for a row
+// whose key row has since been removed: the listing reports what it can resolve
+// rather than guessing.
+type UsageLogEntry struct {
+	UsageLog
+	APIKeyName *string `gorm:"column:api_key_name"`
+}
+
+// ListUsageLogs returns every row of one user's usage that matches filter,
+// newest first. It does not paginate and does not aggregate: the caller charts
+// the rows, and a page would leave it charting a part of the range.
+//
+// The join to api_keys is a left join so that a key-less row is still returned;
+// it carries no key name.
+func ListUsageLogs(ctx context.Context, db *gorm.DB, filter UsageLogFilter) ([]UsageLogEntry, error) {
+	query := db.WithContext(ctx).
+		Model(&UsageLog{}).
+		Select("usage_logs.*, api_keys.name AS api_key_name").
+		Joins("LEFT JOIN api_keys ON api_keys.id = usage_logs.api_key_id").
+		Where("usage_logs.user_id = ?", filter.UserID)
+
+	if filter.From != nil {
+		query = query.Where("usage_logs.created_at >= ?", *filter.From)
+	}
+	if filter.To != nil {
+		query = query.Where("usage_logs.created_at < ?", *filter.To)
+	}
+	if filter.Source != nil {
+		query = query.Where("usage_logs.source = ?", *filter.Source)
+	}
+	if filter.AgentID != nil {
+		query = query.Where("usage_logs.agent_id = ?", *filter.AgentID)
+	}
+	if filter.ProviderID != nil {
+		query = query.Where("usage_logs.provider_id = ?", *filter.ProviderID)
+	}
+	if filter.IsCompaction != nil {
+		query = query.Where("usage_logs.is_compaction = ?", *filter.IsCompaction)
+	}
+	if filter.APIKeyName != nil {
+		query = query.Where("api_keys.name = ?", *filter.APIKeyName)
+	}
+
+	entries := []UsageLogEntry{}
+	if err := query.Order("usage_logs.created_at DESC, usage_logs.id DESC").Scan(&entries).Error; err != nil {
+		return nil, err
+	}
+	return entries, nil
+}
