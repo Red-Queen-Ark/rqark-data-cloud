@@ -125,8 +125,8 @@ func TestRunTokenOfADisabledUserIsRefused(t *testing.T) {
 func TestRunTokenIsHeldToTheWhitelistUnderAuthOrAPIKey(t *testing.T) {
 	user := testUser()
 	sessionID := uuid.New()
-	r := newScopedRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, error) {
-		return nil, ErrAPIKeyRejected
+	r := newScopedRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, uuid.UUID, error) {
+		return nil, uuid.Nil, ErrAPIKeyRejected
 	}, nopLastSeen))
 	raw := runToken(t, user, sessionID)
 

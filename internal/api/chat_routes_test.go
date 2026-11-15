@@ -87,7 +87,7 @@ func TestChatByProviderDropsProviderID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	proxyChat(context, upstream.URL+"/v1", "sk-provider", payload)
+	_, _ = proxyChat(context, upstream.URL+"/v1", "sk-provider", payload, false)
 
 	if _, leaked := gotBody["provider_id"]; leaked {
 		t.Error("provider_id reached the provider")

@@ -167,27 +167,28 @@ func ListAPIKeys(ctx context.Context, userID uuid.UUID, limit, offset int) ([]re
 
 // AuthenticateAPIKey resolves the user behind a presented API key and records
 // the use. It is the hook the auth middleware calls whenever a request carries
-// a key instead of an access token.
-func AuthenticateAPIKey(ctx context.Context, raw string) (*repository.User, error) {
+// a key instead of an access token. The key itself is returned so that the
+// caller can attribute the request to it; only its id is ever used.
+func AuthenticateAPIKey(ctx context.Context, raw string) (*repository.User, *repository.APIKey, error) {
 	if !utils.IsAPIKey(raw) {
-		return nil, ErrInvalidAPIKey
+		return nil, nil, ErrInvalidAPIKey
 	}
 
 	hash := utils.HashAPIKey([]byte(config.SecretKey), raw)
 	key, err := repository.GetAPIKeyByHash(ctx, config.DB, hash)
 	if err != nil {
 		if errors.Is(err, repository.ErrAPIKeyNotFound) {
-			return nil, ErrInvalidAPIKey
+			return nil, nil, ErrInvalidAPIKey
 		}
-		return nil, err
+		return nil, nil, err
 	}
 
 	user, err := repository.GetUserByID(ctx, config.DB, key.UserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			return nil, ErrInvalidAPIKey
+			return nil, nil, ErrInvalidAPIKey
 		}
-		return nil, err
+		return nil, nil, err
 	}
 
 	now := time.Now().UTC()
@@ -198,13 +199,13 @@ func AuthenticateAPIKey(ctx context.Context, raw string) (*repository.User, erro
 			// request is rejected either way.
 			_ = repository.RevokeLapsedAPIKey(ctx, config.DB, key.ID, now)
 		}
-		return nil, ErrInvalidAPIKey
+		return nil, nil, ErrInvalidAPIKey
 	}
 
 	if err := repository.TouchAPIKeyLastUsed(ctx, config.DB, key.ID, now, now.Add(-APIKeyTouchInterval)); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return user, nil
+	return user, key, nil
 }
 
 // validateAPIKeyUse reports whether key may authenticate user at now. The three

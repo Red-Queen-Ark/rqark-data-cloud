@@ -110,6 +110,16 @@ definitions:
     type: object
   api.ChatRequest:
     properties:
+      agent_id:
+        description: AgentID is the agent that issued the call, for usage attribution.
+        example: 8e2f5d3b-2b2b-4b2b-9b2b-2b2b2b2b2b2b
+        type: string
+      is_compaction:
+        description: |-
+          IsCompaction marks a call that summarised the conversation to shrink the
+          context. It is reported by the caller and defaults to false.
+        example: false
+        type: boolean
       messages:
         description: Messages is required and forwarded unchanged.
         items:
@@ -129,6 +139,21 @@ definitions:
         type: string
       reasoning_effort:
         example: high
+        type: string
+      session_id:
+        description: |-
+          The four fields below describe the call rather than ask it. They are read
+          here and never forwarded to the provider; all are optional and a malformed
+          value is ignored rather than rejected.
+
+          SessionID is the session the call belongs to, for usage attribution.
+        example: 7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      source:
+        description: |-
+          Source is the caller's own label for itself, such as TUI or AGENT_CLOUD.
+          It is stored as reported and never reconciled against the session.
+        example: TUI
         type: string
       stream:
         description: |-
@@ -1050,6 +1075,93 @@ definitions:
       is_superuser:
         type: boolean
       username:
+        type: string
+    type: object
+  api.UsageLogDTO:
+    properties:
+      agent_id:
+        type: string
+      api_key_name:
+        example: laptop
+        type: string
+      cached_tokens:
+        example: 800
+        type: integer
+      completion_tokens:
+        example: 300
+        type: integer
+      created_at:
+        example: "2026-11-01T09:30:00Z"
+        type: string
+      id:
+        example: 0192f3a4-1a1a-7a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      is_compaction:
+        example: false
+        type: boolean
+      model:
+        example: deepseek-flash
+        type: string
+      prompt_tokens:
+        example: 1200
+        type: integer
+      provider_id:
+        example: 1b2c3d4e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      reasoning_tokens:
+        example: 0
+        type: integer
+      session_id:
+        type: string
+      source:
+        example: TUI
+        type: string
+      total_tokens:
+        example: 1500
+        type: integer
+      user_id:
+        example: 4c2a3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+    type: object
+  api.UsageQuery:
+    properties:
+      agent_id:
+        example: 8e2f5d3b-2b2b-4b2b-9b2b-2b2b2b2b2b2b
+        type: string
+      api_key_name:
+        description: |-
+          APIKeyName selects rows by the name of the rqark API key they were made
+          with. It is a name rather than an id because that is what the caller
+          knows; two keys may share a name, in which case both match.
+        example: laptop
+        type: string
+      from:
+        description: 'From and To bound created_at, half-open: from is included, to
+          excluded.'
+        example: "2026-11-01T00:00:00Z"
+        type: string
+      is_compaction:
+        example: false
+        type: boolean
+      provider_id:
+        example: 1b2c3d4e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
+        type: string
+      source:
+        description: |-
+          Source, AgentID, ProviderID and IsCompaction select the rows the proxy
+          recorded, not the rows themselves: they narrow the listing by what the
+          caller reported at call time.
+        example: TUI
+        type: string
+      to:
+        example: "2026-12-01T00:00:00Z"
+        type: string
+      user_id:
+        description: |-
+          UserID restricts the listing to one user's rows. It is accepted only
+          from a superuser: a plain caller is always scoped to itself, and a body
+          that names another user is rejected rather than silently narrowed.
+        example: 4c2a3b1e-1a1a-4a1a-8a1a-1a1a1a1a1a1a
         type: string
     type: object
   api.UserConfigDTO:
@@ -4443,6 +4555,49 @@ paths:
       summary: Update a todo
       tags:
       - todos
+  /usage:
+    post:
+      consumes:
+      - application/json
+      description: 'Returns every usage row that matches the body, newest first. It
+        is not paginated and not aggregated: the client receives the rows and charts
+        them itself. An empty body returns every row the caller may read. A plain
+        caller reads its own rows only and may not send user_id; a superuser reads
+        every user''s rows, and may narrow them with user_id. api_key_name selects
+        rows by the name of the key they were made with, and each row reports that
+        name; a row made with an access token has none.'
+      parameters:
+      - description: Filters; every field is optional
+        in: body
+        name: query
+        schema:
+          $ref: '#/definitions/api.UsageQuery'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.UsageLogDTO'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List usage records
+      tags:
+      - usage
   /user-config:
     get:
       description: 'Returns all of the caller''s config entries, ordered by key. Not

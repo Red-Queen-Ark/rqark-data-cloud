@@ -89,9 +89,9 @@ func errorCode(t *testing.T, recorder *httptest.ResponseRecorder) utils.Code {
 
 func TestAuthOrAPIKeyWithoutCredentials(t *testing.T) {
 	user := testUser()
-	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, error) {
+	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, uuid.UUID, error) {
 		t.Error("the API key authenticator was called without a key")
-		return nil, ErrAPIKeyRejected
+		return nil, uuid.Nil, ErrAPIKeyRejected
 	}, nopLastSeen))
 
 	recorder := do(r, "")
@@ -106,9 +106,9 @@ func TestAuthOrAPIKeyWithoutCredentials(t *testing.T) {
 
 func TestAuthOrAPIKeyWithAccessToken(t *testing.T) {
 	user := testUser()
-	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, error) {
+	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, uuid.UUID, error) {
 		t.Error("the API key authenticator was called for an access token")
-		return nil, ErrAPIKeyRejected
+		return nil, uuid.Nil, ErrAPIKeyRejected
 	}, nopLastSeen))
 
 	recorder := do(r, "Bearer "+token(t, user, time.Minute))
@@ -123,8 +123,8 @@ func TestAuthOrAPIKeyWithAccessToken(t *testing.T) {
 
 func TestAuthOrAPIKeyWithExpiredAccessToken(t *testing.T) {
 	user := testUser()
-	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, error) {
-		return nil, ErrAPIKeyRejected
+	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, uuid.UUID, error) {
+		return nil, uuid.Nil, ErrAPIKeyRejected
 	}, nopLastSeen))
 
 	recorder := do(r, "Bearer "+token(t, user, -time.Minute))
@@ -137,8 +137,8 @@ func TestAuthOrAPIKeyWithExpiredAccessToken(t *testing.T) {
 func TestAuthOrAPIKeyWithDisabledUser(t *testing.T) {
 	user := testUser()
 	user.IsActive = false
-	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, error) {
-		return nil, ErrAPIKeyRejected
+	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, uuid.UUID, error) {
+		return nil, uuid.Nil, ErrAPIKeyRejected
 	}, nopLastSeen))
 
 	recorder := do(r, "Bearer "+token(t, user, time.Minute))
@@ -156,9 +156,9 @@ func TestAuthOrAPIKeyWithAPIKey(t *testing.T) {
 	r := newTestRouter(AuthOrAPIKey(testSecret, func(context.Context, uuid.UUID) (*repository.User, error) {
 		t.Error("the access token path was taken for an API key")
 		return nil, repository.ErrUserNotFound
-	}, func(_ context.Context, presented string) (*repository.User, error) {
+	}, func(_ context.Context, presented string) (*repository.User, uuid.UUID, error) {
 		seen = presented
-		return user, nil
+		return user, uuid.Nil, nil
 	}, nopLastSeen))
 
 	recorder := do(r, "Bearer "+raw)
@@ -175,8 +175,8 @@ func TestAuthOrAPIKeyWithAPIKey(t *testing.T) {
 }
 
 func TestAuthOrAPIKeyWithRejectedAPIKey(t *testing.T) {
-	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(testUser()), func(context.Context, string) (*repository.User, error) {
-		return nil, ErrAPIKeyRejected
+	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(testUser()), func(context.Context, string) (*repository.User, uuid.UUID, error) {
+		return nil, uuid.Nil, ErrAPIKeyRejected
 	}, nopLastSeen))
 
 	recorder := do(r, "Bearer rqark-9Zk2Xf1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1p")
@@ -190,8 +190,8 @@ func TestAuthOrAPIKeyWithRejectedAPIKey(t *testing.T) {
 }
 
 func TestAuthOrAPIKeyWithFailingLookup(t *testing.T) {
-	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(testUser()), func(context.Context, string) (*repository.User, error) {
-		return nil, errors.New("database is down")
+	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(testUser()), func(context.Context, string) (*repository.User, uuid.UUID, error) {
+		return nil, uuid.Nil, errors.New("database is down")
 	}, nopLastSeen))
 
 	recorder := do(r, "Bearer rqark-9Zk2Xf1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1p")
@@ -213,8 +213,8 @@ func TestAuthRejectsAPIKey(t *testing.T) {
 
 func TestBearerTokenSchemeIsCaseInsensitive(t *testing.T) {
 	user := testUser()
-	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, error) {
-		return nil, ErrAPIKeyRejected
+	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, uuid.UUID, error) {
+		return nil, uuid.Nil, ErrAPIKeyRejected
 	}, nopLastSeen))
 
 	recorder := do(r, "bearer "+token(t, user, time.Minute))

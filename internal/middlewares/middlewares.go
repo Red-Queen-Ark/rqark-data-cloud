@@ -18,6 +18,11 @@ import (
 // userContextKey is the gin context key holding the authenticated user.
 const userContextKey = "middlewares.user"
 
+// apiKeyContextKey is the gin context key holding the id of the API key a
+// request authenticated with. It is set only on the API key path: an access
+// token request carries no key, and nothing guesses one.
+const apiKeyContextKey = "middlewares.apiKeyID"
+
 // ErrAPIKeyRejected is what an APIKeyAuthenticator reports for a key that may
 // not be used. Any other error it returns is a server-side failure, not a
 // rejected credential.
@@ -27,9 +32,11 @@ var ErrAPIKeyRejected = errors.New("middlewares: api key rejected")
 // repository.ErrUserNotFound when no such user exists.
 type UserLoader func(ctx context.Context, id uuid.UUID) (*repository.User, error)
 
-// APIKeyAuthenticator resolves the user an API key belongs to. It reports
-// ErrAPIKeyRejected whenever the key may not be used, whatever the reason.
-type APIKeyAuthenticator func(ctx context.Context, raw string) (*repository.User, error)
+// APIKeyAuthenticator resolves the user an API key belongs to, and the id of
+// the key that was presented. It reports ErrAPIKeyRejected whenever the key may
+// not be used, whatever the reason. The id is uuid.Nil when the implementation
+// has no key to name, and a nil id never reaches the context.
+type APIKeyAuthenticator func(ctx context.Context, raw string) (*repository.User, uuid.UUID, error)
 
 // LastSeenRecorder records that a user was active at this moment. It is called
 // on the access token paths only: a request made with an API key never counts
@@ -75,8 +82,9 @@ func AuthOrAPIKey(secret []byte, load UserLoader, apiKey APIKeyAuthenticator, re
 		}
 
 		var user *repository.User
+		var keyID uuid.UUID
 		if utils.IsAPIKey(raw) {
-			user, ok = authenticateAPIKey(c, raw, apiKey)
+			user, keyID, ok = authenticateAPIKey(c, raw, apiKey)
 		} else {
 			user, ok = authenticateAccessToken(c, raw, secret, load, record)
 		}
@@ -85,6 +93,9 @@ func AuthOrAPIKey(secret []byte, load UserLoader, apiKey APIKeyAuthenticator, re
 		}
 
 		c.Set(userContextKey, user)
+		if keyID != uuid.Nil {
+			c.Set(apiKeyContextKey, keyID)
+		}
 		c.Next()
 	}
 }
@@ -163,18 +174,20 @@ func recordLastSeen(c *gin.Context, record LastSeenRecorder, id uuid.UUID) {
 
 // authenticateAPIKey verifies one API key, writing the matching rejection when
 // it fails. A key that is merely unusable is told apart from a failure behind
-// the lookup, so a database that is down is not reported as a bad key.
-func authenticateAPIKey(c *gin.Context, raw string, apiKey APIKeyAuthenticator) (*repository.User, bool) {
-	user, err := apiKey(c.Request.Context(), raw)
+// the lookup, so a database that is down is not reported as a bad key. The key
+// id is returned alongside the user so the context can name the key, and is
+// uuid.Nil when the request was rejected.
+func authenticateAPIKey(c *gin.Context, raw string, apiKey APIKeyAuthenticator) (*repository.User, uuid.UUID, bool) {
+	user, keyID, err := apiKey(c.Request.Context(), raw)
 	if err != nil {
 		if errors.Is(err, ErrAPIKeyRejected) {
 			utils.Abort(c, utils.Unauthorized, "Invalid or revoked API key.")
-			return nil, false
+			return nil, uuid.Nil, false
 		}
 		utils.Abort(c, utils.Internal, "Internal server error.")
-		return nil, false
+		return nil, uuid.Nil, false
 	}
-	return user, true
+	return user, keyID, true
 }
 
 // RequireSuperuser rejects callers whose user is not a superuser. It must be
@@ -198,6 +211,21 @@ func CurrentUser(c *gin.Context) (*repository.User, bool) {
 	}
 	user, ok := value.(*repository.User)
 	return user, ok
+}
+
+// CurrentAPIKeyID returns the id of the API key the request authenticated with.
+// The second result is false for a request made with an access token, which has
+// no key behind it, and for a route that never ran AuthOrAPIKey.
+func CurrentAPIKeyID(c *gin.Context) (uuid.UUID, bool) {
+	value, ok := c.Get(apiKeyContextKey)
+	if !ok {
+		return uuid.Nil, false
+	}
+	id, ok := value.(uuid.UUID)
+	if !ok || id == uuid.Nil {
+		return uuid.Nil, false
+	}
+	return id, true
 }
 
 // bearerToken extracts the credentials from an "Authorization: Bearer <token>"

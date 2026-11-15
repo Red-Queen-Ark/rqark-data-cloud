@@ -74,13 +74,16 @@ import (
 // @description				Bearer <access_token>
 func main() {
 	config.InitDatabase()
-	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}, &repository.Agent{}, &repository.Provider{}, &repository.Project{}, &repository.Session{}, &repository.SessionMessage{}, &repository.APIKey{}, &repository.UserConfig{}, &repository.SystemConfig{}, &repository.ProviderPriority{}, &repository.AgentDefault{}, &repository.Task{}, &repository.TaskRun{}, &repository.Memory{}, &repository.AgentState{}, &repository.Sop{}, &repository.Todo{}); err != nil {
+	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}, &repository.Agent{}, &repository.Provider{}, &repository.Project{}, &repository.Session{}, &repository.SessionMessage{}, &repository.APIKey{}, &repository.UserConfig{}, &repository.SystemConfig{}, &repository.ProviderPriority{}, &repository.AgentDefault{}, &repository.Task{}, &repository.TaskRun{}, &repository.Memory{}, &repository.AgentState{}, &repository.Sop{}, &repository.Todo{}, &repository.UsageLog{}); err != nil {
 		log.Fatalf("main: automigrate: %v", err)
 	}
 	// An event row stops being worth anything after 90 days; prune once at
 	// startup and then daily rather than on a write, so retention does not
 	// depend on the pair still being in use.
 	go service.PruneExpiredEventsEvery(24 * time.Hour)
+	// Usage rows are written off the request path, so the writers are started
+	// once here rather than per call.
+	service.StartUsageRecorder()
 	config.InitRedis()
 
 	sender, err := service.MailerFromConfig()

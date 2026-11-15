@@ -41,8 +41,8 @@ func TestAccessTokenRecordsLastSeen(t *testing.T) {
 func TestAPIKeyDoesNotRecordLastSeen(t *testing.T) {
 	user := testUser()
 	record, seen := seenRecorder(nil)
-	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, error) {
-		return user, nil
+	r := newTestRouter(AuthOrAPIKey(testSecret, activeLoader(user), func(context.Context, string) (*repository.User, uuid.UUID, error) {
+		return user, uuid.Nil, nil
 	}, record))
 
 	if recorder := do(r, "Bearer rqark-9Zk2Xf1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1pZ1p"); recorder.Code != http.StatusOK {
