@@ -4,6 +4,7 @@
 2. 加或改 API（endpoint / swagger 註解）後運行 `go generate ./...`
 3. 注解用英文寫，面向國際
 4. `.env` 係默認配置，跟 repo 入 git；唔准加落 `.gitignore`，亦唔准當佢未追蹤
+5. 禁止 squash merge 同 `git revert`；PR 一律用 merge commit，改錯用新 commit
 
 # API
 1. **用戶自己嘅數據集合唔分頁** —— `agents` / `providers` / `sessions`（連 `/sessions/{uuid}/messages`）一律 `GET` 直接回 JSON array，唔收 `?limit=&offset=`。呢啲 endpoint 係俾 app 當「雲端版本地檔」同步，一次過攞齊先可以對住本地檔案做覆寫。
