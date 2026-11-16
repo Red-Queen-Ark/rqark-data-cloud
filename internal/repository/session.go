@@ -33,12 +33,18 @@ type SessionPlanItem struct {
 // that works at the volume root, which is what every session created before
 // projects existed does. Deleting the project clears the column rather than the
 // session: the conversation survives its directory.
+//
+// AgentID names the agent the session was last talked to with. A nil one is a
+// session whose client never said, which is every session created before the
+// column existed. Deleting the agent clears the column rather than the session:
+// the conversation survives the agent it was held with.
 type Session struct {
 	ID        uuid.UUID         `gorm:"type:uuid;primaryKey"`
 	UserID    uuid.UUID         `gorm:"type:uuid;not null;index"`
 	Title     string            `gorm:"type:varchar(255);not null;default:''"`
 	Source    string            `gorm:"type:varchar(32);not null;default:''"`
 	ProjectID *uuid.UUID        `gorm:"type:uuid;index"`
+	AgentID   *uuid.UUID        `gorm:"type:uuid;index"`
 	PlanItems []SessionPlanItem `gorm:"serializer:json;type:jsonb;not null;default:'[]'"`
 	CreatedAt time.Time         `gorm:"not null"`
 	UpdatedAt time.Time         `gorm:"not null"`
@@ -50,6 +56,10 @@ type Session struct {
 	// Project does the same for project_id. OnDelete SET NULL is what makes a
 	// deleted project detach its sessions instead of being refused.
 	Project *Project `gorm:"foreignKey:ProjectID;references:ID;constraint:OnDelete:SET NULL"`
+
+	// Agent does the same for agent_id, so a deleted agent leaves its sessions
+	// behind rather than being refused.
+	Agent *Agent `gorm:"foreignKey:AgentID;references:ID;constraint:OnDelete:SET NULL"`
 }
 
 // TableName pins the table name to the plural used by the rest of the schema.

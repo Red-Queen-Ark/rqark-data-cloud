@@ -197,10 +197,11 @@ func claimOne(ctx context.Context, tx *gorm.DB, task *repository.Task, now time.
 	// The session is created here rather than through POST /api/sessions: the
 	// run has no user credential to create one with, and the run is what owns it.
 	session := &repository.Session{
-		ID:     uuid.New(),
-		UserID: task.UserID,
-		Title:  task.Name,
-		Source: TaskSessionSource,
+		ID:      uuid.New(),
+		UserID:  task.UserID,
+		Title:   task.Name,
+		Source:  TaskSessionSource,
+		AgentID: &agent.ID,
 	}
 	if err := tx.Create(session).Error; err != nil {
 		return nil, false, err
