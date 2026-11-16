@@ -1,3 +1,7 @@
+# AGENTS.md
+
+## Contributing
+> Issue、commit、PR、release、版本號一律跟 `CONTRIBUTING.md`。
 
 # Rules
 1. 改動代碼後運行 `go fmt`
