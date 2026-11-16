@@ -23,6 +23,11 @@ const userContextKey = "middlewares.user"
 // token request carries no key, and nothing guesses one.
 const apiKeyContextKey = "middlewares.apiKeyID"
 
+// runSessionContextKey is the gin context key holding the session a run-scoped
+// token is bound to. It is set only on the run token path, so a handler can
+// attribute what it does to the run without trusting the request body.
+const runSessionContextKey = "middlewares.runSessionID"
+
 // ErrAPIKeyRejected is what an APIKeyAuthenticator reports for a key that may
 // not be used. Any other error it returns is a server-side failure, not a
 // rejected credential.
@@ -57,12 +62,13 @@ func Auth(secret []byte, load UserLoader, record LastSeenRecorder) gin.HandlerFu
 			return
 		}
 
-		user, ok := authenticateAccessToken(c, raw, secret, load, record)
+		user, claims, ok := authenticateAccessToken(c, raw, secret, load, record)
 		if !ok {
 			return
 		}
 
 		c.Set(userContextKey, user)
+		rememberRunSession(c, claims)
 		c.Next()
 	}
 }
@@ -82,17 +88,19 @@ func AuthOrAPIKey(secret []byte, load UserLoader, apiKey APIKeyAuthenticator, re
 		}
 
 		var user *repository.User
+		var claims *utils.TokenClaims
 		var keyID uuid.UUID
 		if utils.IsAPIKey(raw) {
 			user, keyID, ok = authenticateAPIKey(c, raw, apiKey)
 		} else {
-			user, ok = authenticateAccessToken(c, raw, secret, load, record)
+			user, claims, ok = authenticateAccessToken(c, raw, secret, load, record)
 		}
 		if !ok {
 			return
 		}
 
 		c.Set(userContextKey, user)
+		rememberRunSession(c, claims)
 		if keyID != uuid.Nil {
 			c.Set(apiKeyContextKey, keyID)
 		}
@@ -100,63 +108,85 @@ func AuthOrAPIKey(secret []byte, load UserLoader, apiKey APIKeyAuthenticator, re
 	}
 }
 
-// runScopeRoutes is the whole surface a run-scoped token may reach. The key is
-// the method plus the route pattern, so the uuid is compared as a path parameter
-// rather than as text, and a route added later is unreachable until it is named
-// here.
+// runScopeRoutes is the surface a run-scoped token may reach within its own
+// session. The key is the method plus the route pattern, so the uuid is compared
+// as a path parameter rather than as text, and a route added later is unreachable
+// until it is named here.
 var runScopeRoutes = map[string]bool{
 	"GET /api/sessions/:uuid":          true,
 	"PUT /api/sessions/:uuid":          true,
 	"GET /api/sessions/:uuid/messages": true,
 }
 
+// runScopeUnboundRoutes is the surface a run-scoped token may reach that names
+// no session of its own. The chat proxy is here because a run calls a model the
+// same way a person does, and the provider — not the session — is the uuid in
+// the path; what the call is attributed to comes from the token's claims.
+var runScopeUnboundRoutes = map[string]bool{
+	"POST /api/chat/:uuid/chat/completions": true,
+}
+
 // runScopeAllows reports whether a run token bound to sessionID may make this
 // call. The only session it may touch is its own: a run writes the transcript of
 // the run it belongs to and reads nothing else.
 func runScopeAllows(c *gin.Context, sessionID uuid.UUID) bool {
-	if !runScopeRoutes[c.Request.Method+" "+c.FullPath()] {
+	route := c.Request.Method + " " + c.FullPath()
+	if runScopeUnboundRoutes[route] {
+		return true
+	}
+	if !runScopeRoutes[route] {
 		return false
 	}
 	return c.Param("uuid") == sessionID.String()
+}
+
+// rememberRunSession stores the session a run token is bound to, so that a
+// handler can attribute its work to the run. A person's token sets nothing.
+func rememberRunSession(c *gin.Context, claims *utils.TokenClaims) {
+	if claims == nil || claims.Scope != utils.ScopeRun {
+		return
+	}
+	c.Set(runSessionContextKey, claims.SessionID)
 }
 
 // authenticateAccessToken verifies one access token and loads its user, writing
 // the matching rejection when either step fails. A run-scoped token is held to
 // its own session here, so a handler behind Auth never sees one. A token that
 // gets this far has authenticated a person, so the user's last_seen_at is
-// advanced before the request runs.
-func authenticateAccessToken(c *gin.Context, raw string, secret []byte, load UserLoader, record LastSeenRecorder) (*repository.User, bool) {
+// advanced before the request runs. The claims come back with the user so the
+// caller can tell a run token from a person's and record the run's session.
+func authenticateAccessToken(c *gin.Context, raw string, secret []byte, load UserLoader, record LastSeenRecorder) (*repository.User, *utils.TokenClaims, bool) {
 	claims, err := utils.ParseTokenClaims(raw, secret)
 	if err != nil {
 		utils.Abort(c, utils.Unauthorized, "Invalid or expired access token.")
-		return nil, false
+		return nil, nil, false
 	}
 
 	user, err := load(c.Request.Context(), claims.UserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
 			utils.Abort(c, utils.Unauthorized, "Invalid or expired access token.")
-			return nil, false
+			return nil, nil, false
 		}
 		utils.Abort(c, utils.Internal, "Internal server error.")
-		return nil, false
+		return nil, nil, false
 	}
 
 	if !user.IsActive {
 		utils.Abort(c, utils.Unauthorized, "Invalid or expired access token.")
-		return nil, false
+		return nil, nil, false
 	}
 
 	if claims.Scope == utils.ScopeRun {
 		if !runScopeAllows(c, claims.SessionID) {
 			utils.Abort(c, utils.Forbidden, "This token cannot be used here.")
-			return nil, false
+			return nil, nil, false
 		}
-		return user, true
+		return user, claims, true
 	}
 
 	recordLastSeen(c, record, user.ID)
-	return user, true
+	return user, claims, true
 }
 
 // recordLastSeen advances the user's last_seen_at and drops whatever goes
@@ -218,6 +248,21 @@ func CurrentUser(c *gin.Context) (*repository.User, bool) {
 // no key behind it, and for a route that never ran AuthOrAPIKey.
 func CurrentAPIKeyID(c *gin.Context) (uuid.UUID, bool) {
 	value, ok := c.Get(apiKeyContextKey)
+	if !ok {
+		return uuid.Nil, false
+	}
+	id, ok := value.(uuid.UUID)
+	if !ok || id == uuid.Nil {
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+// CurrentRunSession returns the session a run-scoped token is bound to. The
+// second result is false for a person's token, which names no run, and for a
+// request that never authenticated.
+func CurrentRunSession(c *gin.Context) (uuid.UUID, bool) {
+	value, ok := c.Get(runSessionContextKey)
 	if !ok {
 		return uuid.Nil, false
 	}
