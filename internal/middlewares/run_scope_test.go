@@ -32,6 +32,10 @@ func newScopedRouter(mw gin.HandlerFunc) *gin.Engine {
 
 	r.GET("/api/agents", mw, ok)
 
+	chat := r.Group("/api/chat", mw)
+	chat.POST("", ok)
+	chat.POST("/:uuid/chat/completions", ok)
+
 	return r
 }
 
@@ -101,6 +105,83 @@ func TestRunTokenIsRefusedEverywhereElse(t *testing.T) {
 		if code := errorCode(t, recorder); code != utils.Forbidden {
 			t.Errorf("%s %s code = %q, want %q", route.method, route.path, code, utils.Forbidden)
 		}
+	}
+}
+
+// TestRunTokenReachesTheChatProxy covers the one route a run token may reach
+// that names no session of its own: the model call. The provider in the path is
+// not the run's session, so the whitelist has to answer for the route alone.
+func TestRunTokenReachesTheChatProxy(t *testing.T) {
+	user := testUser()
+	sessionID := uuid.New()
+	r := newScopedRouter(Auth(testSecret, activeLoader(user), nopLastSeen))
+
+	path := "/api/chat/" + uuid.New().String() + "/chat/completions"
+	if recorder := call(r, http.MethodPost, path, runToken(t, user, sessionID)); recorder.Code != http.StatusOK {
+		t.Errorf("chat = %d, want %d (body %q)", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+}
+
+// TestRunTokenIsRefusedTheOtherChatRoute covers the form that names the provider
+// in the body: a run token reaches one route, not the whole proxy.
+func TestRunTokenIsRefusedTheOtherChatRoute(t *testing.T) {
+	user := testUser()
+	sessionID := uuid.New()
+	r := newScopedRouter(Auth(testSecret, activeLoader(user), nopLastSeen))
+
+	if recorder := call(r, http.MethodPost, "/api/chat", runToken(t, user, sessionID)); recorder.Code != http.StatusForbidden {
+		t.Errorf("chat = %d, want %d", recorder.Code, http.StatusForbidden)
+	}
+}
+
+// sessionOf runs one request through a router that carries the real route
+// patterns and reports what the middleware left for a handler: the run's
+// session, and whether there was one.
+func sessionOf(t *testing.T, mw gin.HandlerFunc, method, path, raw string) (uuid.UUID, bool) {
+	t.Helper()
+
+	gin.SetMode(gin.TestMode)
+	var got uuid.UUID
+	var found bool
+	read := func(c *gin.Context) {
+		got, found = CurrentRunSession(c)
+		c.String(http.StatusOK, "ok")
+	}
+	r := gin.New()
+	r.POST("/api/chat/:uuid/chat/completions", mw, read)
+	r.GET("/api/agents", mw, read)
+
+	request := httptest.NewRequest(method, path, nil)
+	request.Header.Set("Authorization", "Bearer "+raw)
+	r.ServeHTTP(httptest.NewRecorder(), request)
+	return got, found
+}
+
+// TestTheRunSessionIsAvailableToTheHandler covers the attribution a run cannot
+// state itself: the handler reads the session off the token, not the body.
+func TestTheRunSessionIsAvailableToTheHandler(t *testing.T) {
+	user := testUser()
+	sessionID := uuid.New()
+
+	got, found := sessionOf(t, Auth(testSecret, activeLoader(user), nopLastSeen), http.MethodPost, "/api/chat/"+uuid.New().String()+"/chat/completions", runToken(t, user, sessionID))
+
+	if !found || got != sessionID {
+		t.Errorf("run session = %v, found = %v, want %v", got, found, sessionID)
+	}
+}
+
+// TestAPersonsTokenNamesNoRunSession covers the other side: an ordinary token
+// leaves the run session unset, so nothing is attributed to a run.
+func TestAPersonsTokenNamesNoRunSession(t *testing.T) {
+	user := testUser()
+
+	raw, err := utils.SignAccessToken(user.ID, testSecret, time.Minute)
+	if err != nil {
+		t.Fatalf("SignAccessToken: %v", err)
+	}
+
+	if got, found := sessionOf(t, Auth(testSecret, activeLoader(user), nopLastSeen), http.MethodGet, "/api/agents", raw); found {
+		t.Errorf("run session = %v, found = %v, want none", got, found)
 	}
 }
 

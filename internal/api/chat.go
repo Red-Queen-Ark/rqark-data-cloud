@@ -196,6 +196,7 @@ func forwardChatCompletion(c *gin.Context, providerID uuid.UUID, fields map[stri
 	// The usage tags are read and removed before anything else touches the body:
 	// they describe the call, and the provider must never see them.
 	tags := readUsageTags(fields)
+	tags = withRunAttribution(c, tags)
 
 	if _, ok := fields["messages"]; !ok {
 		abortBadRequest(c, "messages is required.")
@@ -233,6 +234,25 @@ func forwardChatCompletion(c *gin.Context, providerID uuid.UUID, fields map[stri
 	// written.
 	storeUsage(c.Request.Context(), record)
 }
+
+// withRunAttribution fills in what a run-scoped caller cannot say itself. A run
+// token is bound to one session, so the usage row belongs to that session
+// whatever the body claims, and the run labels itself TASK. A person's token
+// leaves the tags as the client sent them.
+func withRunAttribution(c *gin.Context, tags usageTags) usageTags {
+	sessionID, ok := middlewares.CurrentRunSession(c)
+	if !ok {
+		return tags
+	}
+	tags.SessionID = &sessionID
+	if tags.Source == "" {
+		tags.Source = runSource
+	}
+	return tags
+}
+
+// runSource is the source label a task run's model calls carry.
+const runSource = "TASK"
 
 // usageRecord builds the row the write path stores from what the handler knows.
 // It is separate from the handler so the mapping can be tested without a

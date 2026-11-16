@@ -146,7 +146,7 @@ claim 一次做齊：掃 stale → 揀 due（`FOR UPDATE SKIP LOCKED`）→ 建 
 
 同一用戶嘅多個 task 會喺同一次 claim 一齊出，全部共用該用戶嘅 sandbox（`rqark-user-{slug}-workspace`）。呢個係刻意嘅：沙盒係用戶嘅，唔係 run 嘅。代價係兩個 run 同時寫 `/workspace` 會互相踩，所以 runner 唔會喺 run 完之後 stop container。
 
-claim 回嘅 token 係 run-scoped：`scope='run'`，只可以打自己 `session_id` 嘅 `GET` / `PUT /api/sessions/{uuid}` 同 `GET /api/sessions/{uuid}/messages`，其餘一律 `403`。
+claim 回嘅 token 係 run-scoped：`scope='run'`，只可以打自己 `session_id` 嘅 `GET` / `PUT /api/sessions/{uuid}` 同 `GET /api/sessions/{uuid}/messages`，加上 `POST /api/chat/{provider_uuid}/chat/completions`（模型呼叫），其餘一律 `403`。chat proxy 個 `:uuid` 係 provider，唔係 session，所以唔受 session 綁定；run 打 proxy 時 usage 一律記落 token 自己嘅 session、`source` 標 `TASK`，body 帶嘅 `session_id` 會被覆蓋。
 
 # 不變式
 
