@@ -295,6 +295,9 @@ definitions:
     type: object
   api.CreateSessionRequest:
     properties:
+      agent_id:
+        example: 7c2d4e5f-2b2b-4b2b-9b2b-2b2b2b2b2b2b
+        type: string
       plan_items:
         items:
           $ref: '#/definitions/repository.SessionPlanItem'
@@ -729,6 +732,9 @@ definitions:
     type: object
   api.SessionDTO:
     properties:
+      agent_id:
+        example: 7c2d4e5f-2b2b-4b2b-9b2b-2b2b2b2b2b2b
+        type: string
       created_at:
         type: string
       id:
@@ -1010,6 +1016,8 @@ definitions:
     type: object
   api.UpdateSessionRequest:
     properties:
+      agent_id:
+        type: string
       history:
         items:
           additionalProperties: {}

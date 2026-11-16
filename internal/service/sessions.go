@@ -35,29 +35,34 @@ var sessionRoles = map[string]bool{
 // the app generated for the session; when it is nil the cloud mints one. Source
 // names the application the session was uploaded from; an empty string is kept
 // as the column's default. ProjectID names the project the session works in; a
-// nil one is a session at the volume root.
+// nil one is a session at the volume root. AgentID names the agent the session
+// is talked to with; a nil one is a session that names no agent.
 type CreateSessionInput struct {
 	ID        *uuid.UUID
 	Title     string
 	Source    string
 	ProjectID *uuid.UUID
+	AgentID   *uuid.UUID
 	PlanItems []repository.SessionPlanItem
 }
 
 // UpdateSessionInput is a partial update: a nil field is left untouched. A
-// non-nil History replaces the session's messages wholesale. ProjectID is
-// utils.Optional so an explicit null detaches the session from its project.
+// non-nil History replaces the session's messages wholesale. ProjectID and
+// AgentID are utils.Optional so an explicit null detaches the session from its
+// project or its agent.
 type UpdateSessionInput struct {
 	Title     *string
 	Source    *string
 	ProjectID utils.Optional[uuid.UUID]
+	AgentID   utils.Optional[uuid.UUID]
 	PlanItems *[]repository.SessionPlanItem
 	History   *[]map[string]any
 }
 
 // CreateSession validates the title and source and stores a session under
 // userID. The session keeps the caller's uuid when one is given and the cloud
-// mints one otherwise. A project_id must name one of the caller's projects.
+// mints one otherwise. A project_id must name one of the caller's projects, and
+// an agent_id one of the agents the caller may use.
 func CreateSession(ctx context.Context, userID uuid.UUID, in CreateSessionInput) (*repository.Session, error) {
 	if err := validateSessionTitle(in.Title); err != nil {
 		return nil, err
@@ -68,6 +73,9 @@ func CreateSession(ctx context.Context, userID uuid.UUID, in CreateSessionInput)
 	if err := checkProjectOwner(ctx, userID, in.ProjectID); err != nil {
 		return nil, err
 	}
+	if err := checkAgentVisible(ctx, userID, in.AgentID); err != nil {
+		return nil, err
+	}
 
 	session := &repository.Session{
 		ID:        uuid.New(),
@@ -75,6 +83,7 @@ func CreateSession(ctx context.Context, userID uuid.UUID, in CreateSessionInput)
 		Title:     in.Title,
 		Source:    in.Source,
 		ProjectID: in.ProjectID,
+		AgentID:   in.AgentID,
 		PlanItems: in.PlanItems,
 	}
 	if in.ID != nil {
@@ -106,6 +115,11 @@ func UpdateSession(ctx context.Context, userID, id uuid.UUID, in UpdateSessionIn
 			return nil, err
 		}
 	}
+	if in.AgentID.Set {
+		if err := checkAgentVisible(ctx, userID, in.AgentID.Value); err != nil {
+			return nil, err
+		}
+	}
 
 	var messages []repository.SessionMessage
 	if in.History != nil {
@@ -131,6 +145,9 @@ func UpdateSession(ctx context.Context, userID, id uuid.UUID, in UpdateSessionIn
 		}
 		if in.ProjectID.Set {
 			stored.ProjectID = in.ProjectID.Value
+		}
+		if in.AgentID.Set {
+			stored.AgentID = in.AgentID.Value
 		}
 		if in.PlanItems != nil {
 			stored.PlanItems = *in.PlanItems
@@ -255,6 +272,23 @@ func validateSessionTitle(title string) error {
 func validateSessionSource(source string) error {
 	if len(source) > maxSessionSourceLen {
 		return &ValidationError{Message: "source is too long."}
+	}
+	return nil
+}
+
+// checkAgentVisible reports whether agentID names an agent userID may use: its
+// own, or one another user shares. A nil id is accepted: it is a session that
+// names no agent. An agent the caller may not use is a validation error rather
+// than a not-found one, because the caller named the id explicitly.
+func checkAgentVisible(ctx context.Context, userID uuid.UUID, agentID *uuid.UUID) error {
+	if agentID == nil {
+		return nil
+	}
+	if _, err := repository.GetVisibleAgentByID(ctx, config.DB, userID, *agentID); err != nil {
+		if errors.Is(err, repository.ErrAgentNotFound) {
+			return &ValidationError{Message: "agent_id must name one of your agents."}
+		}
+		return err
 	}
 	return nil
 }

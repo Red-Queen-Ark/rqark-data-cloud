@@ -5892,6 +5892,10 @@ const docTemplate = `{
         "api.CreateSessionRequest": {
             "type": "object",
             "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "7c2d4e5f-2b2b-4b2b-9b2b-2b2b2b2b2b2b"
+                },
                 "plan_items": {
                     "type": "array",
                     "items": {
@@ -6498,6 +6502,10 @@ const docTemplate = `{
         "api.SessionDTO": {
             "type": "object",
             "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "example": "7c2d4e5f-2b2b-4b2b-9b2b-2b2b2b2b2b2b"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -6902,6 +6910,9 @@ const docTemplate = `{
         "api.UpdateSessionRequest": {
             "type": "object",
             "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
                 "history": {
                     "type": "array",
                     "items": {

@@ -23,6 +23,7 @@ type SessionDTO struct {
 	Title     string                       `json:"title" example:"Trip planning"`
 	Source    string                       `json:"source" example:"TUI"`
 	ProjectID *uuid.UUID                   `json:"project_id" example:"0f0b7f9a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
+	AgentID   *uuid.UUID                   `json:"agent_id" example:"7c2d4e5f-2b2b-4b2b-9b2b-2b2b2b2b2b2b"`
 	PlanItems []repository.SessionPlanItem `json:"plan_items"`
 	CreatedAt time.Time                    `json:"created_at"`
 	UpdatedAt time.Time                    `json:"updated_at"`
@@ -44,22 +45,26 @@ type SessionMessageDTO struct {
 // the cloud mints one. Source names the application the session was uploaded
 // from and defaults to the empty string. project_id names one of the caller's
 // projects; omitted or null is a session that works at the volume root.
+// agent_id names the agent the session is talked to with; omitted or null is a
+// session that names no agent.
 type CreateSessionRequest struct {
 	UUID      *string                       `json:"uuid" example:"6b1c1f3a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
 	Title     *string                       `json:"title" example:"Trip planning"`
 	Source    *string                       `json:"source" example:"TUI"`
 	ProjectID *string                       `json:"project_id" example:"0f0b7f9a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
+	AgentID   *string                       `json:"agent_id" example:"7c2d4e5f-2b2b-4b2b-9b2b-2b2b2b2b2b2b"`
 	PlanItems *[]repository.SessionPlanItem `json:"plan_items"`
 }
 
 // UpdateSessionRequest is the body of PUT /api/sessions/{uuid}. Every field is
 // optional and a field that is absent is left untouched. A history replaces the
-// session's messages wholesale. An explicit null for project_id detaches the
-// session from its project.
+// session's messages wholesale. An explicit null for project_id or agent_id
+// detaches the session from its project or its agent.
 type UpdateSessionRequest struct {
 	Title     *string                       `json:"title"`
 	Source    *string                       `json:"source"`
 	ProjectID *string                       `json:"project_id"`
+	AgentID   *string                       `json:"agent_id"`
 	PlanItems *[]repository.SessionPlanItem `json:"plan_items"`
 	History   *[]map[string]any             `json:"history"`
 
@@ -96,7 +101,7 @@ func (r UpdateSessionRequest) provided(key string) bool { return r.present[key] 
 
 // toSessionDTO converts a stored session into its wire form. A nil plan_items
 // is reported as an empty list, mirroring the column default. A nil project_id
-// is reported as null, never as the zero uuid.
+// or agent_id is reported as null, never as the zero uuid.
 func toSessionDTO(session *repository.Session) SessionDTO {
 	planItems := session.PlanItems
 	if planItems == nil {
@@ -107,6 +112,7 @@ func toSessionDTO(session *repository.Session) SessionDTO {
 		Title:     session.Title,
 		Source:    session.Source,
 		ProjectID: session.ProjectID,
+		AgentID:   session.AgentID,
 		PlanItems: planItems,
 		CreatedAt: session.CreatedAt,
 		UpdatedAt: session.UpdatedAt,
@@ -224,6 +230,14 @@ func CreateSession(c *gin.Context) {
 		}
 		in.ProjectID = &id
 	}
+	if request.AgentID != nil {
+		id, err := uuid.Parse(*request.AgentID)
+		if err != nil {
+			abortBadRequest(c, "agent_id must be a UUID.")
+			return
+		}
+		in.AgentID = &id
+	}
 	if request.PlanItems != nil {
 		in.PlanItems = *request.PlanItems
 	}
@@ -314,10 +328,21 @@ func UpdateSession(c *gin.Context) {
 		projectID.Value = &parsed
 	}
 
+	agentID := utils.Optional[uuid.UUID]{Set: request.provided("agent_id")}
+	if request.AgentID != nil {
+		parsed, err := uuid.Parse(*request.AgentID)
+		if err != nil {
+			abortBadRequest(c, "agent_id must be a UUID.")
+			return
+		}
+		agentID.Value = &parsed
+	}
+
 	session, err := service.UpdateSession(c.Request.Context(), actor.ID, id, service.UpdateSessionInput{
 		Title:     request.Title,
 		Source:    request.Source,
 		ProjectID: projectID,
+		AgentID:   agentID,
 		PlanItems: request.PlanItems,
 		History:   request.History,
 	})
