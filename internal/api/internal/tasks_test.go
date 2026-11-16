@@ -10,6 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/middlewares"
+	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
+	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/service"
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
 )
 
@@ -133,5 +135,25 @@ func TestFinalizeRefusesAMalformedPath(t *testing.T) {
 
 	if recorder.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want %d", recorder.Code, http.StatusBadRequest)
+	}
+}
+
+// TestClaimNeverHandsOutTheProviderKey covers what a claim response must not
+// contain. The run reaches the model through the chat proxy, so the data cloud
+// is the only place the key lives.
+func TestClaimNeverHandsOutTheProviderKey(t *testing.T) {
+	payload := toClaimedRun(&service.ClaimedRun{
+		Provider: repository.Provider{Name: "openai", ModelName: "gpt-5", APIKey: "sk-secret", APIBase: "https://example.com"},
+	})
+
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(encoded), "sk-secret") {
+		t.Errorf("the claim payload carries the provider key: %s", encoded)
+	}
+	if !strings.Contains(string(encoded), `"api_base":"https://example.com"`) {
+		t.Errorf("the claim payload lost the api_base: %s", encoded)
 	}
 }

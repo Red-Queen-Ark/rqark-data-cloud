@@ -138,6 +138,8 @@ OR (schedule_kind = 'cron'  AND run_at IS NULL AND every_seconds IS NULL AND cro
 
 呢兩條唔會出現喺公開 swagger（`swag init --exclude internal/api/internal`）。
 
+claim 回嘅 `provider_def` **唔含 `api_key`**。run 用 proxy 打模型，provider 憑證只留喺 data cloud。
+
 claim 一次做齊：掃 stale → 揀 due（`FOR UPDATE SKIP LOCKED`）→ 建 session（`source='TASK'`）→ insert run → 推進 `next_run_at` → 簽 run token。全程一個 transaction。
 
 揀 due 嘅條件：`enabled = true` **且**（`next_run_at <= now` **或** 有 `run_now_requested_at`），並且該 task 冇 `running` run，同埋該用戶 `is_active = true`。暫停咗嘅 task 一律唔會被揀，即使身上有 pending 嘅 `run_now`。

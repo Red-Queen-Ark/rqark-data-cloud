@@ -49,14 +49,14 @@ type AgentDefinition struct {
 	Tools       []repository.AgentTool   `json:"tools"`
 }
 
-// ProviderDefinition is a resolved provider, including the credential the run
-// needs to reach the model. It exists only in this response: the endpoint is
-// behind the internal token, and the caller is the service that runs the prompt.
+// ProviderDefinition is a resolved provider: what the run needs to name the
+// model, and the api_base the proxy talks to. It carries no credential — the
+// run reaches the provider through the chat proxy, which adds the key itself —
+// so this response never hands one out.
 type ProviderDefinition struct {
 	ID               uuid.UUID `json:"id"`
 	Name             string    `json:"name"`
 	ModelName        string    `json:"model_name"`
-	APIKey           string    `json:"api_key"`
 	APIBase          string    `json:"api_base"`
 	Priority         int       `json:"priority"`
 	ReasoningEffort  *string   `json:"reasoning_effort"`
@@ -140,7 +140,6 @@ func toClaimedRun(run *service.ClaimedRun) ClaimedRun {
 			ID:               run.Provider.ID,
 			Name:             run.Provider.Name,
 			ModelName:        run.Provider.ModelName,
-			APIKey:           run.Provider.APIKey,
 			APIBase:          run.Provider.APIBase,
 			Priority:         run.Provider.Priority,
 			ReasoningEffort:  run.Provider.ReasoningEffort,
