@@ -46,7 +46,7 @@ func toUserConfigDTO(config *repository.UserConfig) UserConfigDTO {
 // ListUserConfigs returns every config entry of the caller.
 //
 //	@Summary		List user config
-//	@Description	Returns all of the caller's config entries, ordered by key. Not paginated: the app treats them as one local config file and syncs the whole set at once.
+//	@Description	Returns all of the caller's config entries, ordered by key. Not paginated: the app treats them as one local config file and syncs the whole set at once. Entries the account has never set are stored with their default before the list is returned, so the memory switches come back explicitly off instead of missing.
 //	@Tags			user-config
 //	@Security		BearerAuth
 //	@Produce		json

@@ -4762,7 +4762,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns all of the caller's config entries, ordered by key. Not paginated: the app treats them as one local config file and syncs the whole set at once.",
+                "description": "Returns all of the caller's config entries, ordered by key. Not paginated: the app treats them as one local config file and syncs the whole set at once. Entries the account has never set are stored with their default before the list is returned, so the memory switches come back explicitly off instead of missing.",
                 "produces": [
                     "application/json"
                 ],
