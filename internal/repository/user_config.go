@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ErrUserConfigNotFound is returned when no config row matches the lookup. It
@@ -59,6 +60,19 @@ func GetUserConfig(ctx context.Context, db *gorm.DB, userID uuid.UUID, key strin
 // CreateUserConfig inserts a config row.
 func CreateUserConfig(ctx context.Context, db *gorm.DB, config *UserConfig) error {
 	return db.WithContext(ctx).Create(config).Error
+}
+
+// CreateUserConfigsIfAbsent inserts the rows whose (user_id, key) pair is not
+// stored yet and leaves an existing row untouched. Callers use it to materialise
+// defaults, where a value the account already chose must win and two concurrent
+// readers must not race into a unique violation.
+func CreateUserConfigsIfAbsent(ctx context.Context, db *gorm.DB, configs []UserConfig) error {
+	if len(configs) == 0 {
+		return nil
+	}
+	return db.WithContext(ctx).
+		Clauses(clause.OnConflict{DoNothing: true}).
+		Create(&configs).Error
 }
 
 // SaveUserConfig writes every column of config.
