@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"sort"
 	"time"
@@ -45,18 +44,20 @@ type Provider struct {
 	// endpoint. It only labels the provider; the credential and the base URL
 	// stay the owner's.
 	Vendor *string `gorm:"type:varchar(32)"`
-	// Headers holds extra request headers the upstream needs, as a JSON object
-	// of header name to value. NULL when the owner set none.
-	Headers          json.RawMessage `gorm:"serializer:json;type:jsonb"`
-	Priority         int             `gorm:"type:integer;not null"`
-	ReasoningEffort  *string         `gorm:"type:varchar(16)"`
-	Thinking         *string         `gorm:"type:varchar(16)"`
-	Temperature      *float64        `gorm:"type:double precision"`
-	TopP             *float64        `gorm:"type:double precision"`
-	Seed             *int            `gorm:"type:integer"`
-	FrequencyPenalty *float64        `gorm:"type:double precision"`
-	PresencePenalty  *float64        `gorm:"type:double precision"`
-	Combine          bool            `gorm:"not null;default:false"`
+	// Headers holds extra request headers the upstream needs, stored as a JSON
+	// object of header name to value. NULL when the owner set none. A header
+	// value is often the upstream's credential, so it is only ever read back for
+	// the owner.
+	Headers          map[string]string `gorm:"serializer:json;type:jsonb"`
+	Priority         int               `gorm:"type:integer;not null"`
+	ReasoningEffort  *string           `gorm:"type:varchar(16)"`
+	Thinking         *string           `gorm:"type:varchar(16)"`
+	Temperature      *float64          `gorm:"type:double precision"`
+	TopP             *float64          `gorm:"type:double precision"`
+	Seed             *int              `gorm:"type:integer"`
+	FrequencyPenalty *float64          `gorm:"type:double precision"`
+	PresencePenalty  *float64          `gorm:"type:double precision"`
+	Combine          bool              `gorm:"not null;default:false"`
 	// IsPublic marks a provider its owner shares with every other user. Only a
 	// superuser may set it, and only the owner may change the row afterwards.
 	IsPublic bool `gorm:"not null;default:false;index"`

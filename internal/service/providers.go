@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -13,23 +14,33 @@ import (
 
 // Column limits enforced before the database sees the values.
 const (
-	maxProviderNameLen  = 255
-	maxModelNameLen     = 255
-	maxProviderAPIKey   = 255
-	maxProviderAPIBase  = 255
-	reasoningEffortLow  = "low"
-	reasoningEffortHigh = "high"
-	reasoningEffortMax  = "max"
-	thinkingEnabled     = "enabled"
-	thinkingDisabled    = "disabled"
+	maxProviderNameLen   = 255
+	maxModelNameLen      = 255
+	maxProviderAPIKey    = 255
+	maxProviderAPIBase   = 255
+	maxProviderVendorLen = 32
+	// A header name is bounded by the same 255 as the other text columns; a
+	// value is allowed the 8 KiB net/http allows a request header line.
+	maxProviderHeaderNameLen  = 255
+	maxProviderHeaderValueLen = 8192
+	reasoningEffortLow        = "low"
+	reasoningEffortHigh       = "high"
+	reasoningEffortMax        = "max"
+	thinkingEnabled           = "enabled"
+	thinkingDisabled          = "disabled"
 )
 
 // CreateProviderInput is the body accepted by POST /api/providers.
 type CreateProviderInput struct {
-	Name             string
-	ModelName        string
-	APIKey           string
-	APIBase          string
+	Name      string
+	ModelName string
+	APIKey    string
+	APIBase   string
+	// Vendor labels a known upstream; an empty value is stored as NULL.
+	Vendor *string
+	// Headers are extra request headers the upstream needs. An empty map is
+	// stored as NULL.
+	Headers          map[string]string
 	Priority         *int
 	ReasoningEffort  *string
 	Thinking         *string
@@ -48,10 +59,16 @@ type CreateProviderInput struct {
 // leaves the stored value alone; the nullable columns are utils.Optional, so an
 // explicit null clears them while an absent key leaves them alone.
 type UpdateProviderInput struct {
-	Name             *string
-	ModelName        *string
-	APIKey           *string
-	APIBase          *string
+	Name      *string
+	ModelName *string
+	APIKey    *string
+	APIBase   *string
+	// Vendor replaces the label; a null clears it and an empty string is stored
+	// as NULL.
+	Vendor utils.Optional[string]
+	// Headers replaces the whole header set; a null or an empty object clears
+	// it.
+	Headers          utils.Optional[map[string]string]
 	Priority         *int
 	ReasoningEffort  utils.Optional[string]
 	Thinking         utils.Optional[string]
@@ -82,6 +99,8 @@ func CreateProvider(ctx context.Context, userID uuid.UUID, isSuperuser bool, in 
 		ModelName:        in.ModelName,
 		APIKey:           in.APIKey,
 		APIBase:          in.APIBase,
+		Vendor:           normalizeVendor(in.Vendor),
+		Headers:          normalizeHeaders(in.Headers),
 		Priority:         *in.Priority,
 		ReasoningEffort:  in.ReasoningEffort,
 		Thinking:         in.Thinking,
@@ -126,6 +145,12 @@ func UpdateProvider(ctx context.Context, userID uuid.UUID, isSuperuser bool, id 
 	}
 	if in.APIBase != nil {
 		provider.APIBase = *in.APIBase
+	}
+	if in.Vendor.Set {
+		provider.Vendor = normalizeVendor(in.Vendor.Value)
+	}
+	if in.Headers.Set {
+		provider.Headers = normalizeHeaders(valueOf(in.Headers.Value))
 	}
 	if in.Priority != nil {
 		provider.Priority = *in.Priority
@@ -242,6 +267,14 @@ func validateNewProvider(in CreateProviderInput) error {
 	if in.Priority == nil {
 		return &ValidationError{Message: "priority is required."}
 	}
+	if in.Vendor != nil {
+		if err := validateProviderVendor(*in.Vendor); err != nil {
+			return err
+		}
+	}
+	if err := validateProviderHeaders(in.Headers); err != nil {
+		return err
+	}
 	if in.ReasoningEffort != nil {
 		if err := validateReasoningEffort(*in.ReasoningEffort); err != nil {
 			return err
@@ -274,6 +307,16 @@ func validateProviderUpdate(in UpdateProviderInput) error {
 	}
 	if in.APIBase != nil {
 		if err := validateProviderAPIBase(*in.APIBase); err != nil {
+			return err
+		}
+	}
+	if in.Vendor.Value != nil {
+		if err := validateProviderVendor(*in.Vendor.Value); err != nil {
+			return err
+		}
+	}
+	if in.Headers.Value != nil {
+		if err := validateProviderHeaders(*in.Headers.Value); err != nil {
 			return err
 		}
 	}
@@ -330,6 +373,108 @@ func validateProviderAPIBase(apiBase string) error {
 		return &ValidationError{Message: "api_base is too long."}
 	}
 	return nil
+}
+
+// validateProviderVendor checks that the vendor label fits its column. An empty
+// label is allowed: it means no known upstream, which is stored as NULL.
+func validateProviderVendor(vendor string) error {
+	if len(vendor) > maxProviderVendorLen {
+		return &ValidationError{Message: "vendor is too long."}
+	}
+	return nil
+}
+
+// validateProviderHeaders checks that every extra header can be put on an HTTP
+// request upstream. The proxy writes them with net/http, which refuses a name
+// that is not a token and a value carrying a line break, so the same rules are
+// applied here and a bad pair is reported as a field error rather than turning
+// into a failed call later.
+func validateProviderHeaders(headers map[string]string) error {
+	for name, value := range headers {
+		if name == "" {
+			return &ValidationError{Message: "headers must not carry an empty header name."}
+		}
+		if !isHeaderNameToken(name) {
+			return &ValidationError{Message: "headers carries an invalid header name: " + name + "."}
+		}
+		if len(name) > maxProviderHeaderNameLen {
+			return &ValidationError{Message: "headers carries a header name that is too long: " + name + "."}
+		}
+		if len(value) > maxProviderHeaderValueLen {
+			return &ValidationError{Message: "headers carries a value that is too long: " + name + "."}
+		}
+		if !isHeaderValueSafe(value) {
+			return &ValidationError{Message: "headers carries a value with a line break: " + name + "."}
+		}
+	}
+	return nil
+}
+
+// isHeaderNameToken reports whether name is an RFC 9110 token, the character
+// set a header field name may use.
+func isHeaderNameToken(name string) bool {
+	for i := 0; i < len(name); i++ {
+		if !isTokenByte(name[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// isTokenByte reports whether b is one of the token characters (RFC 9110,
+// section 5.6.2).
+func isTokenByte(b byte) bool {
+	switch {
+	case 'a' <= b && b <= 'z', 'A' <= b && b <= 'Z', '0' <= b && b <= '9':
+		return true
+	}
+	switch b {
+	case '!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~':
+		return true
+	}
+	return false
+}
+
+// isHeaderValueSafe reports whether value can be sent as a header value: no CR
+// or LF, which would let a stored value start a second header.
+func isHeaderValueSafe(value string) bool {
+	for i := 0; i < len(value); i++ {
+		if value[i] == '\r' || value[i] == '\n' {
+			return false
+		}
+	}
+	return true
+}
+
+// normalizeVendor turns an absent or empty label into nil, so the column stays
+// NULL rather than holding an empty string that reads back as a vendor.
+func normalizeVendor(vendor *string) *string {
+	if vendor == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*vendor)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+// normalizeHeaders turns a nil or empty header set into nil, so the column stays
+// NULL rather than holding an empty JSON object.
+func normalizeHeaders(headers map[string]string) map[string]string {
+	if len(headers) == 0 {
+		return nil
+	}
+	return headers
+}
+
+// valueOf dereferences an optional value, reading an explicit null as nil.
+func valueOf[T any](value *T) T {
+	var zero T
+	if value == nil {
+		return zero
+	}
+	return *value
 }
 
 // validateReasoningEffort checks the reasoning_effort enum.

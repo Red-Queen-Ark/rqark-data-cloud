@@ -9,6 +9,8 @@
 | `model_name` | string(255) | |
 | `api_key` | string(255) | |
 | `api_base` | string(255) | |
+| `vendor` | string(32) | 已知上游嘅 catalog id，nullable；留空即 `NULL` |
+| `headers` | jsonb | 額外上游請求標頭，`{ "名稱": "值" }`，nullable；只回俾擁有者 |
 | `priority` | integer | 擁有者自己嘅排序，唔會傳去其他用戶 |
 | `reasoning_effort` | string(16) | enum：`low` / `high` / `max`，nullable |
 | `thinking` | string(16) | enum：`enabled` / `disabled`，nullable |
@@ -40,7 +42,7 @@ Unique index `(user_id, provider_id)` —— 每個用戶對每條 provider 最�
 |---|---|---|---|
 | GET | `/api/providers` | — | 列出你可使用嘅 provider：自己嘅加其他人公用嘅 |
 | GET | `/api/providers/{uuid}` | — | 取得單一 provider（自己嘅或者人哋公用嘅） |
-| POST | `/api/providers` | `{ "model_name": str, "api_key": str, "api_base": str, "priority": int, "name"?: str, "reasoning_effort"?: "low"/"high"/"max", "thinking"?: "enabled"/"disabled", "temperature"?: float, "top_p"?: float, "seed"?: int, "frequency_penalty"?: float, "presence_penalty"?: float, "combine"?: bool, "is_public"?: bool }` | 建立 provider |
+| POST | `/api/providers` | `{ "model_name": str, "api_key": str, "api_base": str, "priority": int, "name"?: str, "reasoning_effort"?: "low"/"high"/"max", "thinking"?: "enabled"/"disabled", "temperature"?: float, "top_p"?: float, "seed"?: int, "frequency_penalty"?: float, "presence_penalty"?: float, "combine"?: bool, "is_public"?: bool, "vendor"?: str, "headers"?: { str: str } }` | 建立 provider |
 | PUT | `/api/providers/{uuid}` | 同 POST，未帶入的欄位不變更 | 更新 provider（只有擁有者） |
 | DELETE | `/api/providers/{uuid}` | — | 刪除 provider（只有擁有者） |
 | PUT | `/api/providers/{uuid}/priority` | `{ "priority": int }` | 設定自己對一條人哋公用嘅 provider 嘅 priority override（未設過就係 `-99`） |
@@ -75,4 +77,8 @@ Unique index `(user_id, provider_id)` —— 每個用戶對每條 provider 最�
 - 回應嘅 DTO 有 `is_public`（係唔係公用）、`owned`（係唔係呼叫者自己嘅，即係改唔改得 provider 本身）、`priority_override`（係唔係呼叫者自己設嘅 priority），仍然唔含 `user_id`。
 - `name` 冇 unique —— `Provider.__post_init__` 會將空 `name` 補成 `model_name`，同一個 model 可以有多條（唔同 `api_key` / `api_base`），排序靠 priority。
 - 無設定嘅 nullable 欄位照 `null` 存，唔好當 `0` / `false` 解讀。
+- **`vendor` 只係標籤** —— 寫入時 trim，空字串或者全空白一律存 `NULL`；超過 32 字回 `400`。佢唔會改變 `api_base` 或者 credential 嘅行為。
+- **`headers` 係成個 object 覆寫** —— `POST` / `PUT` 收到嘅 `headers` 直接取代原本嗰組；`PUT` 唔帶呢個 key 就保留，帶 `null` 或者 `{}` 就清做 `NULL`。寫入前逐對檢查：名稱一定要係 RFC 9110 token（唔可以有空白、冒號），值唔可以有 CR / LF，名稱上限 255、值上限 8192，唔合格回 `400`。值可以留住冒號同空白，例如 `Authorization: Bearer ...`。
+- **`headers` 只回擁有者** —— `GET /api/providers`、`GET /api/providers/{uuid}` 對人哋嘅公用 provider 一律回 `headers: null`，因為 header 值有可能就係上游憑證。`vendor` 冇呢個限制。
+- **`headers` 未接入 proxy** —— 今次只做儲存同 API 讀寫，`/api/chat` 未會將佢哋加落上游請求。
 - 回應一律唔含 `user_id`，同 `agents.md` / `sessions.md` 一致。

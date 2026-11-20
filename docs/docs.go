@@ -5847,6 +5847,12 @@ const docTemplate = `{
                     "type": "number",
                     "example": 0.5
                 },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "is_public": {
                     "type": "boolean",
                     "example": false
@@ -5886,6 +5892,10 @@ const docTemplate = `{
                 "top_p": {
                     "type": "number",
                     "example": 0.9
+                },
+                "vendor": {
+                    "type": "string",
+                    "example": "deepseek"
                 }
             }
         },
@@ -6305,6 +6315,13 @@ const docTemplate = `{
                     "type": "number",
                     "example": 0.5
                 },
+                "headers": {
+                    "description": "Headers are the extra request headers the upstream needs, null when the\nowner set none. They are only returned to the owner: a header value can\ncarry a credential, and a shared provider is readable by other users.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "id": {
                     "type": "string",
                     "example": "7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"
@@ -6360,6 +6377,11 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                },
+                "vendor": {
+                    "description": "Vendor labels a known upstream and is null on a custom endpoint.",
+                    "type": "string",
+                    "example": "deepseek"
                 }
             }
         },
@@ -6875,6 +6897,12 @@ const docTemplate = `{
                 "frequency_penalty": {
                     "type": "number"
                 },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "is_public": {
                     "type": "boolean"
                 },
@@ -6904,6 +6932,9 @@ const docTemplate = `{
                 },
                 "top_p": {
                     "type": "number"
+                },
+                "vendor": {
+                    "type": "string"
                 }
             }
         },
