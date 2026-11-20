@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
+	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
 )
 
 // providerTestDB opens the shared test database and installs the tables the
@@ -236,5 +237,68 @@ func TestUnsharingAProviderHidesItAndKeepsTheOverride(t *testing.T) {
 	}
 	if view.EffectivePriority(viewer.ID) != 5 {
 		t.Errorf("effective priority = %d, want the override 5 back", view.EffectivePriority(viewer.ID))
+	}
+}
+
+// TestProviderVendorAndHeadersRoundTrip covers the two columns a client fills
+// in by hand: they are stored, read back unchanged, and an empty value is stored
+// as NULL rather than as an empty string or an empty object.
+func TestProviderVendorAndHeadersRoundTrip(t *testing.T) {
+	db := providerTestDB(t)
+	owner := testProviderUser(t, db)
+	ctx := context.Background()
+
+	created, err := CreateProvider(ctx, owner.ID, false, CreateProviderInput{
+		ModelName: "kimi-k3",
+		APIKey:    "sk-test",
+		APIBase:   "https://api.moonshot.cn/v1",
+		Priority:  ptr(1),
+		Vendor:    ptr("moonshot"),
+		Headers:   map[string]string{"X-Api-Version": "2024-06-01"},
+	})
+	if err != nil {
+		t.Fatalf("CreateProvider: %v", err)
+	}
+	if created.Vendor == nil || *created.Vendor != "moonshot" {
+		t.Errorf("vendor = %v, want moonshot", created.Vendor)
+	}
+	if created.Headers["X-Api-Version"] != "2024-06-01" {
+		t.Errorf("headers = %v, want X-Api-Version kept", created.Headers)
+	}
+
+	blank := ""
+	empty := map[string]string{}
+	if _, err := UpdateProvider(ctx, owner.ID, false, created.ID, UpdateProviderInput{
+		Vendor:  utils.Optional[string]{Set: true, Value: &blank},
+		Headers: utils.Optional[map[string]string]{Set: true, Value: &empty},
+	}); err != nil {
+		t.Fatalf("UpdateProvider: %v", err)
+	}
+
+	stored, err := repository.GetProviderByID(ctx, db, owner.ID, created.ID)
+	if err != nil {
+		t.Fatalf("GetProviderByID: %v", err)
+	}
+	if stored.Vendor != nil {
+		t.Errorf("vendor = %v, want nil after an empty label", stored.Vendor)
+	}
+	if stored.Headers != nil {
+		t.Errorf("headers = %v, want nil after an empty set", stored.Headers)
+	}
+}
+
+// TestProviderHeadersAreHeldToWhatNetHTTPAccepts covers the field check on the
+// create path, so a header the proxy could not send is refused at write time.
+func TestProviderHeadersAreHeldToWhatNetHTTPAccepts(t *testing.T) {
+	_, err := CreateProvider(context.Background(), uuid.New(), false, CreateProviderInput{
+		ModelName: "kimi-k3",
+		APIKey:    "sk-test",
+		APIBase:   "https://api.moonshot.cn/v1",
+		Priority:  ptr(1),
+		Headers:   map[string]string{"X-Api": "a\nb"},
+	})
+	var validation *ValidationError
+	if !errors.As(err, &validation) {
+		t.Fatalf("CreateProvider with a header line break = %v, want a ValidationError", err)
 	}
 }

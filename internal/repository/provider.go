@@ -31,21 +31,33 @@ const UnsetProviderPriority = -99
 // so a column the client never set stays NULL and is read back as null rather
 // than as 0 or false.
 type Provider struct {
-	ID               uuid.UUID `gorm:"type:uuid;primaryKey"`
-	UserID           uuid.UUID `gorm:"type:uuid;not null;index"`
-	Name             string    `gorm:"type:varchar(255);not null;default:''"`
-	ModelName        string    `gorm:"type:varchar(255);not null"`
-	APIKey           string    `gorm:"type:varchar(255);not null"`
-	APIBase          string    `gorm:"type:varchar(255);not null"`
-	Priority         int       `gorm:"type:integer;not null"`
-	ReasoningEffort  *string   `gorm:"type:varchar(16)"`
-	Thinking         *string   `gorm:"type:varchar(16)"`
-	Temperature      *float64  `gorm:"type:double precision"`
-	TopP             *float64  `gorm:"type:double precision"`
-	Seed             *int      `gorm:"type:integer"`
-	FrequencyPenalty *float64  `gorm:"type:double precision"`
-	PresencePenalty  *float64  `gorm:"type:double precision"`
-	Combine          bool      `gorm:"not null;default:false"`
+	ID     uuid.UUID `gorm:"type:uuid;primaryKey"`
+	UserID uuid.UUID `gorm:"type:uuid;not null;index"`
+	// Name is optional and not unique: rqark-core fills an empty name from
+	// model_name, and several providers may serve the same model under
+	// different credentials. FindProviderNamed resolves a name per owner.
+	Name      string `gorm:"type:varchar(255);not null;default:''"`
+	ModelName string `gorm:"type:varchar(255);not null"`
+	APIKey    string `gorm:"type:varchar(255);not null"`
+	APIBase   string `gorm:"type:varchar(255);not null"`
+	// Vendor is the catalog id of a known upstream, or NULL for a custom
+	// endpoint. It only labels the provider; the credential and the base URL
+	// stay the owner's.
+	Vendor *string `gorm:"type:varchar(32)"`
+	// Headers holds extra request headers the upstream needs, stored as a JSON
+	// object of header name to value. NULL when the owner set none. A header
+	// value is often the upstream's credential, so it is only ever read back for
+	// the owner.
+	Headers          map[string]string `gorm:"serializer:json;type:jsonb"`
+	Priority         int               `gorm:"type:integer;not null"`
+	ReasoningEffort  *string           `gorm:"type:varchar(16)"`
+	Thinking         *string           `gorm:"type:varchar(16)"`
+	Temperature      *float64          `gorm:"type:double precision"`
+	TopP             *float64          `gorm:"type:double precision"`
+	Seed             *int              `gorm:"type:integer"`
+	FrequencyPenalty *float64          `gorm:"type:double precision"`
+	PresencePenalty  *float64          `gorm:"type:double precision"`
+	Combine          bool              `gorm:"not null;default:false"`
 	// IsPublic marks a provider its owner shares with every other user. Only a
 	// superuser may set it, and only the owner may change the row afterwards.
 	IsPublic bool `gorm:"not null;default:false;index"`

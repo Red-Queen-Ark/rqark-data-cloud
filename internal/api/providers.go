@@ -22,21 +22,27 @@ import (
 // provider's own priority when the caller owns it, and -99 on a shared
 // provider the caller never ordered.
 type ProviderDTO struct {
-	ID               uuid.UUID `json:"id" example:"7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
-	Name             string    `json:"name" example:"deepseek-v4-pro"`
-	ModelName        string    `json:"model_name" example:"deepseek-v4-pro"`
-	APIBase          string    `json:"api_base" example:"https://api.deepseek.com/v1"`
-	Priority         int       `json:"priority" example:"1"`
-	ReasoningEffort  *string   `json:"reasoning_effort" example:"high"`
-	Thinking         *string   `json:"thinking" example:"enabled"`
-	Temperature      *float64  `json:"temperature" example:"0.7"`
-	TopP             *float64  `json:"top_p" example:"0.9"`
-	Seed             *int      `json:"seed" example:"42"`
-	FrequencyPenalty *float64  `json:"frequency_penalty" example:"0.5"`
-	PresencePenalty  *float64  `json:"presence_penalty" example:"0.5"`
-	Combine          bool      `json:"combine" example:"false"`
-	IsPublic         bool      `json:"is_public" example:"false"`
-	Owned            bool      `json:"owned" example:"true"`
+	ID        uuid.UUID `json:"id" example:"7d1e4c2a-1a1a-4a1a-8a1a-1a1a1a1a1a1a"`
+	Name      string    `json:"name" example:"deepseek-v4-pro"`
+	ModelName string    `json:"model_name" example:"deepseek-v4-pro"`
+	APIBase   string    `json:"api_base" example:"https://api.deepseek.com/v1"`
+	// Vendor labels a known upstream and is null on a custom endpoint.
+	Vendor *string `json:"vendor" example:"deepseek"`
+	// Headers are the extra request headers the upstream needs, null when the
+	// owner set none. They are only returned to the owner: a header value can
+	// carry a credential, and a shared provider is readable by other users.
+	Headers          map[string]string `json:"headers"`
+	Priority         int               `json:"priority" example:"1"`
+	ReasoningEffort  *string           `json:"reasoning_effort" example:"high"`
+	Thinking         *string           `json:"thinking" example:"enabled"`
+	Temperature      *float64          `json:"temperature" example:"0.7"`
+	TopP             *float64          `json:"top_p" example:"0.9"`
+	Seed             *int              `json:"seed" example:"42"`
+	FrequencyPenalty *float64          `json:"frequency_penalty" example:"0.5"`
+	PresencePenalty  *float64          `json:"presence_penalty" example:"0.5"`
+	Combine          bool              `json:"combine" example:"false"`
+	IsPublic         bool              `json:"is_public" example:"false"`
+	Owned            bool              `json:"owned" example:"true"`
 	// PriorityOverride is the caller's own priority for a shared provider, or
 	// null when the caller never ordered it. It is always null on a provider the
 	// caller owns: that priority is edited through the provider.
@@ -55,40 +61,44 @@ type ProviderSummaryDTO struct {
 
 // CreateProviderRequest is the body of POST /api/providers.
 type CreateProviderRequest struct {
-	Name             string   `json:"name" example:"deepseek-v4-pro"`
-	ModelName        string   `json:"model_name" example:"deepseek-v4-pro"`
-	APIKey           string   `json:"api_key" example:"sk-rqark-0000"`
-	APIBase          string   `json:"api_base" example:"https://api.deepseek.com/v1"`
-	Priority         *int     `json:"priority" example:"1"`
-	ReasoningEffort  *string  `json:"reasoning_effort" example:"high"`
-	Thinking         *string  `json:"thinking" example:"enabled"`
-	Temperature      *float64 `json:"temperature" example:"0.7"`
-	TopP             *float64 `json:"top_p" example:"0.9"`
-	Seed             *int     `json:"seed" example:"42"`
-	FrequencyPenalty *float64 `json:"frequency_penalty" example:"0.5"`
-	PresencePenalty  *float64 `json:"presence_penalty" example:"0.5"`
-	Combine          bool     `json:"combine" example:"false"`
-	IsPublic         bool     `json:"is_public" example:"false"`
+	Name             string            `json:"name" example:"deepseek-v4-pro"`
+	ModelName        string            `json:"model_name" example:"deepseek-v4-pro"`
+	APIKey           string            `json:"api_key" example:"sk-rqark-0000"`
+	APIBase          string            `json:"api_base" example:"https://api.deepseek.com/v1"`
+	Vendor           *string           `json:"vendor" example:"deepseek"`
+	Headers          map[string]string `json:"headers"`
+	Priority         *int              `json:"priority" example:"1"`
+	ReasoningEffort  *string           `json:"reasoning_effort" example:"high"`
+	Thinking         *string           `json:"thinking" example:"enabled"`
+	Temperature      *float64          `json:"temperature" example:"0.7"`
+	TopP             *float64          `json:"top_p" example:"0.9"`
+	Seed             *int              `json:"seed" example:"42"`
+	FrequencyPenalty *float64          `json:"frequency_penalty" example:"0.5"`
+	PresencePenalty  *float64          `json:"presence_penalty" example:"0.5"`
+	Combine          bool              `json:"combine" example:"false"`
+	IsPublic         bool              `json:"is_public" example:"false"`
 }
 
 // UpdateProviderRequest is the body of PUT /api/providers/{uuid}. Every field is
 // optional: a field that is absent leaves the stored value alone, while an
 // explicit null clears one of the nullable columns.
 type UpdateProviderRequest struct {
-	Name             *string  `json:"name"`
-	ModelName        *string  `json:"model_name"`
-	APIKey           *string  `json:"api_key"`
-	APIBase          *string  `json:"api_base"`
-	Priority         *int     `json:"priority"`
-	ReasoningEffort  *string  `json:"reasoning_effort"`
-	Thinking         *string  `json:"thinking"`
-	Temperature      *float64 `json:"temperature"`
-	TopP             *float64 `json:"top_p"`
-	Seed             *int     `json:"seed"`
-	FrequencyPenalty *float64 `json:"frequency_penalty"`
-	PresencePenalty  *float64 `json:"presence_penalty"`
-	Combine          *bool    `json:"combine"`
-	IsPublic         *bool    `json:"is_public"`
+	Name             *string           `json:"name"`
+	ModelName        *string           `json:"model_name"`
+	APIKey           *string           `json:"api_key"`
+	APIBase          *string           `json:"api_base"`
+	Vendor           *string           `json:"vendor"`
+	Headers          map[string]string `json:"headers"`
+	Priority         *int              `json:"priority"`
+	ReasoningEffort  *string           `json:"reasoning_effort"`
+	Thinking         *string           `json:"thinking"`
+	Temperature      *float64          `json:"temperature"`
+	TopP             *float64          `json:"top_p"`
+	Seed             *int              `json:"seed"`
+	FrequencyPenalty *float64          `json:"frequency_penalty"`
+	PresencePenalty  *float64          `json:"presence_penalty"`
+	Combine          *bool             `json:"combine"`
+	IsPublic         *bool             `json:"is_public"`
 
 	// present holds the keys the body carried. encoding/json decodes an absent
 	// key and an explicit null to the same nil pointer, and the two mean
@@ -116,6 +126,16 @@ func (r *UpdateProviderRequest) UnmarshalJSON(data []byte) error {
 		r.present[key] = true
 	}
 	return nil
+}
+
+// headersValue turns the decoded header map into the pointer Optional expects.
+// An absent key and an explicit null both decode to a nil map, and the caller
+// tells them apart through provided; a nil map means null, which clears.
+func headersValue(headers map[string]string) *map[string]string {
+	if headers == nil {
+		return nil
+	}
+	return &headers
 }
 
 // provided reports whether the body carried key.
@@ -157,11 +177,24 @@ func toProviderDTO(view *repository.ViewerProvider, viewerID uuid.UUID) Provider
 		PresencePenalty:  provider.PresencePenalty,
 		Combine:          provider.Combine,
 		IsPublic:         provider.IsPublic,
+		Vendor:           provider.Vendor,
+		Headers:          headersForViewer(provider, viewerID),
 		Owned:            provider.UserID == viewerID,
 		PriorityOverride: view.OverridePriority,
 		CreatedAt:        provider.CreatedAt,
 		UpdatedAt:        provider.UpdatedAt,
 	}
+}
+
+// headersForViewer returns the provider's extra headers to the owner and to
+// nobody else. A header value can be the upstream's credential, so serving it
+// with a shared provider would hand the owner's secret to every user that can
+// read the provider.
+func headersForViewer(provider *repository.Provider, viewerID uuid.UUID) map[string]string {
+	if provider.UserID != viewerID {
+		return nil
+	}
+	return provider.Headers
 }
 
 // ownedView wraps a provider the caller owns, which by definition carries no
@@ -269,6 +302,8 @@ func CreateProvider(c *gin.Context) {
 		ModelName:        request.ModelName,
 		APIKey:           request.APIKey,
 		APIBase:          request.APIBase,
+		Vendor:           request.Vendor,
+		Headers:          request.Headers,
 		Priority:         request.Priority,
 		ReasoningEffort:  request.ReasoningEffort,
 		Thinking:         request.Thinking,
@@ -361,6 +396,8 @@ func UpdateProvider(c *gin.Context) {
 		ModelName:        request.ModelName,
 		APIKey:           request.APIKey,
 		APIBase:          request.APIBase,
+		Vendor:           optional(request.Vendor, request.provided("vendor")),
+		Headers:          optional(headersValue(request.Headers), request.provided("headers")),
 		Priority:         request.Priority,
 		ReasoningEffort:  optional(request.ReasoningEffort, request.provided("reasoning_effort")),
 		Thinking:         optional(request.Thinking, request.provided("thinking")),

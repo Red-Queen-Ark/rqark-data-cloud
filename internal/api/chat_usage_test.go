@@ -335,7 +335,7 @@ func TestProxyChatReportsUsageOnlyOnSuccess(t *testing.T) {
 	context, _ := gin.CreateTestContext(recorder)
 	context.Request = httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(`{"messages":[]}`))
 
-	usage, recorded := proxyChat(context, upstream.URL, "sk-provider", []byte(`{"messages":[]}`), false)
+	usage, recorded := proxyChat(context, chatProxyTarget{APIBase: upstream.URL, APIKey: "sk-provider"}, []byte(`{"messages":[]}`), false)
 
 	if recorded {
 		t.Error("recorded = true, want false for a provider error")

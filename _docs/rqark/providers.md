@@ -9,6 +9,8 @@
 | `model_name` | string(255) | |
 | `api_key` | string(255) | |
 | `api_base` | string(255) | |
+| `vendor` | string(32) | 已知上游嘅 catalog id，nullable；留空即 `NULL` |
+| `headers` | jsonb | 額外上游請求標頭，`{ "名稱": "值" }`，nullable；只回俾擁有者 |
 | `priority` | integer | 擁有者自己嘅排序，唔會傳去其他用戶 |
 | `reasoning_effort` | string(16) | enum：`low` / `high` / `max`，nullable |
 | `thinking` | string(16) | enum：`enabled` / `disabled`，nullable |
@@ -40,7 +42,7 @@ Unique index `(user_id, provider_id)` —— 每個用戶對每條 provider 最�
 |---|---|---|---|
 | GET | `/api/providers` | — | 列出你可使用嘅 provider：自己嘅加其他人公用嘅 |
 | GET | `/api/providers/{uuid}` | — | 取得單一 provider（自己嘅或者人哋公用嘅） |
-| POST | `/api/providers` | `{ "model_name": str, "api_key": str, "api_base": str, "priority": int, "name"?: str, "reasoning_effort"?: "low"/"high"/"max", "thinking"?: "enabled"/"disabled", "temperature"?: float, "top_p"?: float, "seed"?: int, "frequency_penalty"?: float, "presence_penalty"?: float, "combine"?: bool, "is_public"?: bool }` | 建立 provider |
+| POST | `/api/providers` | `{ "model_name": str, "api_key": str, "api_base": str, "priority": int, "name"?: str, "reasoning_effort"?: "low"/"high"/"max", "thinking"?: "enabled"/"disabled", "temperature"?: float, "top_p"?: float, "seed"?: int, "frequency_penalty"?: float, "presence_penalty"?: float, "combine"?: bool, "is_public"?: bool, "vendor"?: str, "headers"?: { str: str } }` | 建立 provider |
 | PUT | `/api/providers/{uuid}` | 同 POST，未帶入的欄位不變更 | 更新 provider（只有擁有者） |
 | DELETE | `/api/providers/{uuid}` | — | 刪除 provider（只有擁有者） |
 | PUT | `/api/providers/{uuid}/priority` | `{ "priority": int }` | 設定自己對一條人哋公用嘅 provider 嘅 priority override（未設過就係 `-99`） |
@@ -60,6 +62,17 @@ Unique index `(user_id, provider_id)` —— 每個用戶對每條 provider 最�
 - `stream: true` 時上游 SSE 逐段 relay，唔會 buffer 到最後。
 - 可見性同 `GET /api/providers/{uuid}` 一致：自己嘅或者人哋公用嘅，其他一律 `404`。
 - 上游嘅 status / headers / body 原樣回，`401`、`429` 唔會譯成 data cloud 自己嘅 error code。上游連唔到或者 `api_base` 唔係合法 URL 回 `502 BAD_GATEWAY`。
+- 上游請求一律帶 `User-Agent: rqark/<version>`，`<version>` 係 build 嘅版本（release tag 去咗頭一個 `v`，例如 `rqark/0.9.1`；冇 tag 嘅 build 係 `rqark/dev` 或者短 commit）。只保留 token 合法字元，所以 tag 有怪字都唔會砌出無效 UA。呼叫者自己嘅 `User-Agent` 唔會傳過去。
+- **`headers` 嘅值可以帶 `${name}` placeholder** —— proxy 每次呼叫都幫你填。可用嘅變數：
+  - `${session_id}`：呼叫所屬嘅 session（body 嘅 `session_id`，或者 run token 綁定嗰個）
+  - `${agent_id}`：呼叫所屬嘅 agent
+  - `${user_id}`：發起呼叫嘅用戶
+  - `${provider_id}`：今次用嘅 provider
+  - `${model}`：今次送去上游嘅 model 名
+  例：`x-opencode-session: ${session_id}` 就係 OpenCode Go 要嘅做法——proxy 唔識呢個 header，只係幫你填值。同名 header 只可以寫死或者用 placeholder，冇其他語法。
+- **變數冇值就成個 header 唔送** —— 例如呼叫冇 session，`${session_id}` 填唔到，嗰個 header 就唔會出現喺上游請求，唔會送空字串或者未填嘅 `${...}`。
+- **寫入時檢查 placeholder** —— `${...}` 入面唔係上面五個之一，或者 `"${"` 冇收口，`POST` / `PUT` 回 `400`，避免字面值送去上游。
+- **stored header 唔可以蓋走 proxy 自己嘅 header** —— `Authorization`（provider 憑證）、`User-Agent`（`rqark/<version>`）、`Content-Type`、`Host`、`Content-Length` 同 hop-by-hop header 一律由 proxy 決定；寫咗都會被略過。
 - run-scoped token 只可以打 path 版（`POST /api/chat/{uuid}` 唔准）；usage 記落 token 自己嘅 session，`source` 預設 `TASK`，body 帶嘅 `session_id` 會被覆蓋。
 
 ## 規則
@@ -75,4 +88,8 @@ Unique index `(user_id, provider_id)` —— 每個用戶對每條 provider 最�
 - 回應嘅 DTO 有 `is_public`（係唔係公用）、`owned`（係唔係呼叫者自己嘅，即係改唔改得 provider 本身）、`priority_override`（係唔係呼叫者自己設嘅 priority），仍然唔含 `user_id`。
 - `name` 冇 unique —— `Provider.__post_init__` 會將空 `name` 補成 `model_name`，同一個 model 可以有多條（唔同 `api_key` / `api_base`），排序靠 priority。
 - 無設定嘅 nullable 欄位照 `null` 存，唔好當 `0` / `false` 解讀。
+- **`vendor` 只係標籤** —— 寫入時 trim，空字串或者全空白一律存 `NULL`；超過 32 字回 `400`。佢唔會改變 `api_base` 或者 credential 嘅行為。
+- **`headers` 係成個 object 覆寫** —— `POST` / `PUT` 收到嘅 `headers` 直接取代原本嗰組；`PUT` 唔帶呢個 key 就保留，帶 `null` 或者 `{}` 就清做 `NULL`。寫入前逐對檢查：名稱一定要係 RFC 9110 token（唔可以有空白、冒號），值唔可以有 CR / LF，名稱上限 255、值上限 8192，唔合格回 `400`。值可以留住冒號同空白，例如 `Authorization: Bearer ...`。
+- **`headers` 只回擁有者** —— `GET /api/providers`、`GET /api/providers/{uuid}` 對人哋嘅公用 provider 一律回 `headers: null`，因為 header 值有可能就係上游憑證。`vendor` 冇呢個限制。
+- **`headers` 會送去上游** —— `/api/chat` 同 `/api/chat/{uuid}/chat/completions` 每次呼叫都會帶埋，placeholder 已填好。
 - 回應一律唔含 `user_id`，同 `agents.md` / `sessions.md` 一致。

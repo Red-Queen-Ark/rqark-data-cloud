@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // serveChat runs proxyChat against a recorder carrying one request, and returns
@@ -25,7 +26,7 @@ func serveChat(t *testing.T, apiBase, apiKey, payload string) *httptest.Response
 	context.Request.Header.Set("Content-Type", "application/json")
 	context.Request.Header.Set("Authorization", "Bearer data-cloud-token")
 
-	_, _ = proxyChat(context, apiBase, apiKey, []byte(payload), false)
+	_, _ = proxyChat(context, chatProxyTarget{APIBase: apiBase, APIKey: apiKey}, []byte(payload), false)
 	return recorder
 }
 
@@ -39,12 +40,14 @@ func TestProxyChatForwardsTheBody(t *testing.T) {
 		gotContentType   string
 		gotBody          map[string]any
 		gotCallerHeaders string
+		gotUserAgent     string
 	)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
 		gotAuth = r.Header.Get("Authorization")
 		gotContentType = r.Header.Get("Content-Type")
 		gotCallerHeaders = r.Header.Get("X-Request-Id")
+		gotUserAgent = r.Header.Get("User-Agent")
 
 		body, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(body, &gotBody)
@@ -69,6 +72,9 @@ func TestProxyChatForwardsTheBody(t *testing.T) {
 	}
 	if gotCallerHeaders != "" {
 		t.Errorf("the data cloud credential path leaked a caller header: %q", gotCallerHeaders)
+	}
+	if gotUserAgent != upstreamUserAgent() {
+		t.Errorf("User-Agent = %q, want %q", gotUserAgent, upstreamUserAgent())
 	}
 	if gotBody["temperature"] != 0.2 {
 		t.Errorf("temperature = %v, want the caller's 0.2", gotBody["temperature"])
@@ -155,7 +161,7 @@ func TestProxyChatStreamsWithoutBuffering(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		_, _ = proxyChat(context, upstream.URL, "sk-provider", []byte(`{"messages":[],"stream":true}`), true)
+		_, _ = proxyChat(context, chatProxyTarget{APIBase: upstream.URL, APIKey: "sk-provider"}, []byte(`{"messages":[],"stream":true}`), true)
 		close(done)
 	}()
 
@@ -189,4 +195,154 @@ func (w *streamWriter) Write(data []byte) (int, error) {
 	n, err := w.ResponseWriter.Write(data)
 	w.once.Do(func() { close(w.first) })
 	return n, err
+}
+
+// TestProxyChatRendersStoredHeaders covers the stored headers a provider owner
+// sets: they reach the upstream, and a ${name} placeholder is filled from the
+// call rather than sent as written. The OpenCode Go session header is only one
+// use of that: the proxy does not know the header by name.
+func TestProxyChatRendersStoredHeaders(t *testing.T) {
+	sessionID := uuid.New()
+	var (
+		gotSession string
+		gotVersion string
+		gotStatic  string
+	)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotSession = r.Header.Get("x-opencode-session")
+		gotVersion = r.Header.Get("X-Api-Version")
+		gotStatic = r.Header.Get("X-Static")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer upstream.Close()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(`{"messages":[]}`))
+
+	_, _ = proxyChat(context, chatProxyTarget{
+		APIBase: upstream.URL,
+		APIKey:  "sk-provider",
+		Headers: map[string]string{
+			"x-opencode-session": "${session_id}",
+			"X-Api-Version":      "2024-06-01",
+			"X-Static":           "plain",
+		},
+		Vars: map[string]string{"session_id": sessionID.String()},
+	}, []byte(`{"messages":[]}`), false)
+
+	if gotSession != sessionID.String() {
+		t.Errorf("x-opencode-session = %q, want %q", gotSession, sessionID)
+	}
+	if gotVersion != "2024-06-01" {
+		t.Errorf("X-Api-Version = %q, want the stored value", gotVersion)
+	}
+	if gotStatic != "plain" {
+		t.Errorf("X-Static = %q, want the stored value", gotStatic)
+	}
+}
+
+// TestProxyChatDropsAHeaderWhoseValueTheCallDoesNotHave covers a call that
+// belongs to no session: the header is left off rather than sent empty or with
+// the placeholder still in it.
+func TestProxyChatDropsAHeaderWhoseValueTheCallDoesNotHave(t *testing.T) {
+	var gotSession string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotSession = r.Header.Get("x-opencode-session")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer upstream.Close()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(`{"messages":[]}`))
+
+	_, _ = proxyChat(context, chatProxyTarget{
+		APIBase: upstream.URL,
+		APIKey:  "sk-provider",
+		Headers: map[string]string{"x-opencode-session": "${session_id}"},
+		Vars:    map[string]string{},
+	}, []byte(`{"messages":[]}`), false)
+
+	if gotSession != "" {
+		t.Errorf("x-opencode-session = %q, want it absent", gotSession)
+	}
+}
+
+// TestProxyChatKeepsItsOwnHeadersOverTheStoredOnes covers the boundary: a stored
+// header cannot replace the provider credential or the identity the proxy sends
+// as, and a connection-scoped header never reaches the upstream.
+func TestProxyChatKeepsItsOwnHeadersOverTheStoredOnes(t *testing.T) {
+	var (
+		gotAuth       string
+		gotUserAgent  string
+		gotConnection string
+	)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		gotUserAgent = r.Header.Get("User-Agent")
+		gotConnection = r.Header.Get("Connection")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer upstream.Close()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(`{"messages":[]}`))
+
+	_, _ = proxyChat(context, chatProxyTarget{
+		APIBase: upstream.URL,
+		APIKey:  "sk-provider",
+		Headers: map[string]string{
+			"Authorization": "Bearer from-a-stored-header",
+			"User-Agent":    "stored-agent",
+			"Connection":    "close",
+		},
+	}, []byte(`{"messages":[]}`), false)
+
+	if gotAuth != "Bearer sk-provider" {
+		t.Errorf("Authorization = %q, want the provider key", gotAuth)
+	}
+	if gotUserAgent != upstreamUserAgent() {
+		t.Errorf("User-Agent = %q, want %q", gotUserAgent, upstreamUserAgent())
+	}
+	if gotConnection != "" {
+		t.Errorf("Connection = %q, want it dropped", gotConnection)
+	}
+}
+
+// TestUserAgentVersionTurnsABuildIntoAToken covers the product version the
+// upstream sees: the release tag loses its leading `v`, a short commit stays a
+// valid token, and a build with no version names itself dev rather than leaving
+// the product version empty.
+func TestUserAgentVersionTurnsABuildIntoAToken(t *testing.T) {
+	cases := map[string]string{
+		"v0.9.1":         "0.9.1",
+		"0.9.1":          "0.9.1",
+		" v0.9.1 ":       "0.9.1",
+		"v0.9.1-rc1":     "0.9.1-rc1",
+		"574ada6":        "574ada6",
+		"feat/provider":  "featprovider",
+		"v0.9.1+dirty":   "0.9.1+dirty",
+		"dev":            "dev",
+		"":               "dev",
+		"   ":            "dev",
+		"v":              "dev",
+		"v/rqark (beta)": "rqarkbeta",
+	}
+	for raw, want := range cases {
+		if got := userAgentVersion(raw); got != want {
+			t.Errorf("userAgentVersion(%q) = %q, want %q", raw, got, want)
+		}
+	}
+
+	if got := upstreamUserAgent(); !strings.HasPrefix(got, "rqark/") {
+		t.Errorf("upstreamUserAgent() = %q, want it to start with rqark/", got)
+	}
 }
