@@ -15,6 +15,7 @@ import (
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/middlewares"
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/service"
 	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
+	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/version"
 )
 
 // ChatRequest is the body of POST /api/chat: the body of an OpenAI
@@ -96,7 +97,7 @@ var hopByHopHeaders = []string{
 // holds a data cloud token, not the provider key.
 //
 //	@Summary		Chat through a stored provider
-//	@Description	Forwards an OpenAI chat completion to the provider named by provider_id and relays the provider's response as it arrives, including a server-sent event stream when stream is true. The provider's api_key is added server-side, the call carries `User-Agent: rqark/1.0`, and the provider's stored headers are sent with their `${name}` placeholders filled from the call. The provider's status, headers and body are returned unchanged, so an upstream 401 or 429 reaches the caller as it was sent.
+//	@Description	Forwards an OpenAI chat completion to the provider named by provider_id and relays the provider's response as it arrives, including a server-sent event stream when stream is true. The provider's api_key is added server-side, the call carries `User-Agent: rqark/<version>` with the build's version, and the provider's stored headers are sent with their `${name}` placeholders filled from the call. The provider's status, headers and body are returned unchanged, so an upstream 401 or 429 reaches the caller as it was sent.
 //	@Tags			chat
 //	@Accept			json
 //	@Produce		json
@@ -286,10 +287,32 @@ func usageRecord(userID, providerID uuid.UUID, tags usageTags, model string, usa
 
 // upstreamUserAgent is the User-Agent every proxied call carries, so an upstream
 // sees the service rather than whichever client happened to call it. The product
-// token carries a version, as the OpenCode Go terms ask of a client that is not
-// a generic SDK: an upstream can then tell one generation of this client from
-// the next.
-const upstreamUserAgent = "rqark/1.0"
+// token carries the build's version, so an upstream can tell one release from
+// the next, and a caller cannot disguise itself by choosing a user agent.
+func upstreamUserAgent() string {
+	return "rqark/" + userAgentVersion(version.Version)
+}
+
+// userAgentVersion turns the build's version string into the token a User-Agent
+// product version may carry: the release tag without its leading `v`, and only
+// the characters RFC 9110 allows there. A tag with a branch or a short commit
+// in it still produces a valid token, and a build with no version at all
+// reports `dev` rather than an empty product.
+func userAgentVersion(raw string) string {
+	cleaned := strings.Map(func(r rune) rune {
+		switch {
+		case 'a' <= r && r <= 'z', 'A' <= r && r <= 'Z', '0' <= r && r <= '9':
+			return r
+		case r == '.', r == '-', r == '_', r == '+':
+			return r
+		}
+		return -1
+	}, strings.TrimPrefix(strings.TrimSpace(raw), "v"))
+	if cleaned == "" {
+		return "dev"
+	}
+	return cleaned
+}
 
 // chatProxyTarget is everything about a call that comes from the provider row
 // and the request tags rather than from the body: where the call goes, the
@@ -369,7 +392,7 @@ func proxyChat(c *gin.Context, target chatProxyTarget, payload []byte, stream bo
 	applyProviderHeaders(request.Header, target.Headers, target.Vars)
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer "+target.APIKey)
-	request.Header.Set("User-Agent", upstreamUserAgent)
+	request.Header.Set("User-Agent", upstreamUserAgent())
 
 	response, err := chatClient.Do(request)
 	if err != nil {

@@ -62,7 +62,7 @@ Unique index `(user_id, provider_id)` —— 每個用戶對每條 provider 最�
 - `stream: true` 時上游 SSE 逐段 relay，唔會 buffer 到最後。
 - 可見性同 `GET /api/providers/{uuid}` 一致：自己嘅或者人哋公用嘅，其他一律 `404`。
 - 上游嘅 status / headers / body 原樣回，`401`、`429` 唔會譯成 data cloud 自己嘅 error code。上游連唔到或者 `api_base` 唔係合法 URL 回 `502 BAD_GATEWAY`。
-- 上游請求一律帶 `User-Agent: rqark/1.0`；呼叫者自己嘅 `User-Agent` 唔會傳過去。
+- 上游請求一律帶 `User-Agent: rqark/<version>`，`<version>` 係 build 嘅版本（release tag 去咗頭一個 `v`，例如 `rqark/0.9.1`；冇 tag 嘅 build 係 `rqark/dev` 或者短 commit）。只保留 token 合法字元，所以 tag 有怪字都唔會砌出無效 UA。呼叫者自己嘅 `User-Agent` 唔會傳過去。
 - **`headers` 嘅值可以帶 `${name}` placeholder** —— proxy 每次呼叫都幫你填。可用嘅變數：
   - `${session_id}`：呼叫所屬嘅 session（body 嘅 `session_id`，或者 run token 綁定嗰個）
   - `${agent_id}`：呼叫所屬嘅 agent
@@ -72,7 +72,7 @@ Unique index `(user_id, provider_id)` —— 每個用戶對每條 provider 最�
   例：`x-opencode-session: ${session_id}` 就係 OpenCode Go 要嘅做法——proxy 唔識呢個 header，只係幫你填值。同名 header 只可以寫死或者用 placeholder，冇其他語法。
 - **變數冇值就成個 header 唔送** —— 例如呼叫冇 session，`${session_id}` 填唔到，嗰個 header 就唔會出現喺上游請求，唔會送空字串或者未填嘅 `${...}`。
 - **寫入時檢查 placeholder** —— `${...}` 入面唔係上面五個之一，或者 `"${"` 冇收口，`POST` / `PUT` 回 `400`，避免字面值送去上游。
-- **stored header 唔可以蓋走 proxy 自己嘅 header** —— `Authorization`（provider 憑證）、`User-Agent`（`rqark/1.0`）、`Content-Type`、`Host`、`Content-Length` 同 hop-by-hop header 一律由 proxy 決定；寫咗都會被略過。
+- **stored header 唔可以蓋走 proxy 自己嘅 header** —— `Authorization`（provider 憑證）、`User-Agent`（`rqark/<version>`）、`Content-Type`、`Host`、`Content-Length` 同 hop-by-hop header 一律由 proxy 決定；寫咗都會被略過。
 - run-scoped token 只可以打 path 版（`POST /api/chat/{uuid}` 唔准）；usage 記落 token 自己嘅 session，`source` 預設 `TASK`，body 帶嘅 `session_id` 會被覆蓋。
 
 ## 規則

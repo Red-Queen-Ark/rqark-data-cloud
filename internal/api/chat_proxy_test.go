@@ -73,8 +73,8 @@ func TestProxyChatForwardsTheBody(t *testing.T) {
 	if gotCallerHeaders != "" {
 		t.Errorf("the data cloud credential path leaked a caller header: %q", gotCallerHeaders)
 	}
-	if gotUserAgent != "rqark/1.0" {
-		t.Errorf("User-Agent = %q, want rqark/1.0", gotUserAgent)
+	if gotUserAgent != upstreamUserAgent() {
+		t.Errorf("User-Agent = %q, want %q", gotUserAgent, upstreamUserAgent())
 	}
 	if gotBody["temperature"] != 0.2 {
 		t.Errorf("temperature = %v, want the caller's 0.2", gotBody["temperature"])
@@ -309,10 +309,40 @@ func TestProxyChatKeepsItsOwnHeadersOverTheStoredOnes(t *testing.T) {
 	if gotAuth != "Bearer sk-provider" {
 		t.Errorf("Authorization = %q, want the provider key", gotAuth)
 	}
-	if gotUserAgent != upstreamUserAgent {
-		t.Errorf("User-Agent = %q, want %q", gotUserAgent, upstreamUserAgent)
+	if gotUserAgent != upstreamUserAgent() {
+		t.Errorf("User-Agent = %q, want %q", gotUserAgent, upstreamUserAgent())
 	}
 	if gotConnection != "" {
 		t.Errorf("Connection = %q, want it dropped", gotConnection)
+	}
+}
+
+// TestUserAgentVersionTurnsABuildIntoAToken covers the product version the
+// upstream sees: the release tag loses its leading `v`, a short commit stays a
+// valid token, and a build with no version names itself dev rather than leaving
+// the product version empty.
+func TestUserAgentVersionTurnsABuildIntoAToken(t *testing.T) {
+	cases := map[string]string{
+		"v0.9.1":         "0.9.1",
+		"0.9.1":          "0.9.1",
+		" v0.9.1 ":       "0.9.1",
+		"v0.9.1-rc1":     "0.9.1-rc1",
+		"574ada6":        "574ada6",
+		"feat/provider":  "featprovider",
+		"v0.9.1+dirty":   "0.9.1+dirty",
+		"dev":            "dev",
+		"":               "dev",
+		"   ":            "dev",
+		"v":              "dev",
+		"v/rqark (beta)": "rqarkbeta",
+	}
+	for raw, want := range cases {
+		if got := userAgentVersion(raw); got != want {
+			t.Errorf("userAgentVersion(%q) = %q, want %q", raw, got, want)
+		}
+	}
+
+	if got := upstreamUserAgent(); !strings.HasPrefix(got, "rqark/") {
+		t.Errorf("upstreamUserAgent() = %q, want it to start with rqark/", got)
 	}
 }
