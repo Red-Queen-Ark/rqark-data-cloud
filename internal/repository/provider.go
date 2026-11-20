@@ -34,10 +34,9 @@ const UnsetProviderPriority = -99
 type Provider struct {
 	ID     uuid.UUID `gorm:"type:uuid;primaryKey"`
 	UserID uuid.UUID `gorm:"type:uuid;not null;index"`
-	// Name is optional. The pair (user_id, name) is unique once the rows allow
-	// it: the index is created by EnsureProviderNameIndex rather than declared
-	// here, because AutoMigrate would fail on a table that already holds
-	// duplicates and a failed migration keeps the service from starting.
+	// Name is optional and not unique: rqark-core fills an empty name from
+	// model_name, and several providers may serve the same model under
+	// different credentials. FindProviderNamed resolves a name per owner.
 	Name      string `gorm:"type:varchar(255);not null;default:''"`
 	ModelName string `gorm:"type:varchar(255);not null"`
 	APIKey    string `gorm:"type:varchar(255);not null"`
@@ -313,50 +312,6 @@ func DeleteProvider(ctx context.Context, db *gorm.DB, userID, id uuid.UUID) erro
 		return ErrProviderNotFound
 	}
 	return nil
-}
-
-// ProviderNameIndexName is the unique index over providers (user_id, name).
-const ProviderNameIndexName = "idx_providers_user_id_name"
-
-// ProviderNameDuplicate is one (user_id, name) pair that occurs more than once
-// in providers, so the unique index cannot be built.
-type ProviderNameDuplicate struct {
-	UserID uuid.UUID
-	Name   string
-	Count  int64
-}
-
-// EnsureProviderNameIndex creates the unique index over providers (user_id,
-// name), which makes a provider name identify at most one provider per owner.
-//
-// Existing installations may hold duplicates: the column was optional and not
-// unique before, so it is checked first. Any duplicate is returned and the index
-// is left uncreated instead of failing, so startup still succeeds and an
-// operator can clean the rows up and restart. A nil result with a nil error
-// means the index is in place.
-func EnsureProviderNameIndex(ctx context.Context, db *gorm.DB) ([]ProviderNameDuplicate, error) {
-	duplicates := []ProviderNameDuplicate{}
-	err := db.WithContext(ctx).
-		Raw(`SELECT user_id, name, COUNT(*) AS count
-			FROM providers
-			GROUP BY user_id, name
-			HAVING COUNT(*) > 1
-			ORDER BY user_id, name`).
-		Scan(&duplicates).Error
-	if err != nil {
-		return nil, err
-	}
-	if len(duplicates) > 0 {
-		return duplicates, nil
-	}
-
-	err = db.WithContext(ctx).Exec(
-		"CREATE UNIQUE INDEX IF NOT EXISTS " + ProviderNameIndexName + " ON providers (user_id, name)",
-	).Error
-	if err != nil {
-		return nil, err
-	}
-	return nil, nil
 }
 
 // providerLookupError maps GORM's not-found error onto the repository's own.

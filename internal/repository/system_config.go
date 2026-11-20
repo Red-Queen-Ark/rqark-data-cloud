@@ -54,22 +54,6 @@ func GetSystemConfig(ctx context.Context, db *gorm.DB, key string) (*SystemConfi
 	return &config, nil
 }
 
-// GetSystemConfigOrDefault loads one config row by key and returns fallback when
-// no row carries the key. Any other error is returned as-is, so a failed
-// connection is never mistaken for a missing setting — a one-off job that treats
-// the two alike would re-run on a broken database.
-func GetSystemConfigOrDefault(ctx context.Context, db *gorm.DB, key string, fallback json.RawMessage) (json.RawMessage, error) {
-	config, err := GetSystemConfig(ctx, db, key)
-	switch {
-	case err == nil:
-		return config.Value, nil
-	case errors.Is(err, ErrSystemConfigNotFound):
-		return fallback, nil
-	default:
-		return nil, err
-	}
-}
-
 // CreateSystemConfig inserts a config row.
 func CreateSystemConfig(ctx context.Context, db *gorm.DB, config *SystemConfig) error {
 	return db.WithContext(ctx).Create(config).Error

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"log"
 	"time"
 
@@ -75,22 +74,8 @@ import (
 // @description				Bearer <access_token>
 func main() {
 	config.InitDatabase()
-	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}, &repository.Agent{}, &repository.Provider{}, &repository.ProviderModel{}, &repository.Project{}, &repository.Session{}, &repository.SessionMessage{}, &repository.APIKey{}, &repository.UserConfig{}, &repository.SystemConfig{}, &repository.ProviderPriority{}, &repository.AgentDefault{}, &repository.Task{}, &repository.TaskRun{}, &repository.Memory{}, &repository.AgentState{}, &repository.Sop{}, &repository.Todo{}, &repository.UsageLog{}); err != nil {
+	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}, &repository.Agent{}, &repository.Provider{}, &repository.Project{}, &repository.Session{}, &repository.SessionMessage{}, &repository.APIKey{}, &repository.UserConfig{}, &repository.SystemConfig{}, &repository.ProviderPriority{}, &repository.AgentDefault{}, &repository.Task{}, &repository.TaskRun{}, &repository.Memory{}, &repository.AgentState{}, &repository.Sop{}, &repository.Todo{}, &repository.UsageLog{}); err != nil {
 		log.Fatalf("main: automigrate: %v", err)
-	}
-	// The unique (user_id, name) index on providers cannot carry an AutoMigrate
-	// tag: a table that already holds duplicate names would fail the migration
-	// and keep the service down. It is created here instead, and skipped with a
-	// warning when duplicates are found.
-	duplicateNames, err := repository.EnsureProviderNameIndex(context.Background(), config.DB)
-	if err != nil {
-		log.Fatalf("main: providers name index: %v", err)
-	}
-	for _, duplicate := range duplicateNames {
-		log.Printf("main: providers name index skipped: user %s holds %d providers named %q; clean up and restart", duplicate.UserID, duplicate.Count, duplicate.Name)
-	}
-	if err := repository.EnsureProviderModelDefaultIndex(context.Background(), config.DB); err != nil {
-		log.Fatalf("main: provider_models default index: %v", err)
 	}
 	// An event row stops being worth anything after 90 days; prune once at
 	// startup and then daily rather than on a write, so retention does not
