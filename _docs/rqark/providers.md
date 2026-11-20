@@ -62,6 +62,7 @@ Unique index `(user_id, provider_id)` —— 每個用戶對每條 provider 最�
 - `stream: true` 時上游 SSE 逐段 relay，唔會 buffer 到最後。
 - 可見性同 `GET /api/providers/{uuid}` 一致：自己嘅或者人哋公用嘅，其他一律 `404`。
 - 上游嘅 status / headers / body 原樣回，`401`、`429` 唔會譯成 data cloud 自己嘅 error code。上游連唔到或者 `api_base` 唔係合法 URL 回 `502 BAD_GATEWAY`。
+- 上游請求一律帶 `User-Agent: rqark`；呼叫者自己嘅 `User-Agent` 唔會傳過去。
 - run-scoped token 只可以打 path 版（`POST /api/chat/{uuid}` 唔准）；usage 記落 token 自己嘅 session，`source` 預設 `TASK`，body 帶嘅 `session_id` 會被覆蓋。
 
 ## 規則

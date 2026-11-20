@@ -96,13 +96,14 @@ func TestCopyRequestHeaders(t *testing.T) {
 	src.Set("Connection", "keep-alive")
 	src.Set("Proxy-Authorization", "Basic abc")
 	src.Set("Accept-Encoding", "gzip")
+	src.Set("User-Agent", "curl/8.7.1")
 	src.Set("Content-Type", "application/json")
 	src.Set("OpenAI-Beta", "assistants=v2")
 
 	dst := http.Header{}
 	copyRequestHeaders(dst, src)
 
-	for _, name := range []string{"Authorization", "Connection", "Proxy-Authorization", "Accept-Encoding"} {
+	for _, name := range []string{"Authorization", "Connection", "Proxy-Authorization", "Accept-Encoding", "User-Agent"} {
 		if got := dst.Get(name); got != "" {
 			t.Errorf("%s reached the provider as %q", name, got)
 		}

@@ -279,6 +279,10 @@ func usageRecord(userID, providerID uuid.UUID, tags usageTags, model string, usa
 	return record
 }
 
+// upstreamUserAgent is the User-Agent every proxied call carries, so an upstream
+// sees the service rather than whichever client happened to call it.
+const upstreamUserAgent = "rqark"
+
 // proxyChat sends payload to the provider at apiBase, carrying the provider's
 // credential, and relays what comes back. The provider's status, headers and
 // body are passed on unchanged, so its own error codes reach the caller as they
@@ -296,6 +300,7 @@ func proxyChat(c *gin.Context, apiBase, apiKey string, payload []byte, stream bo
 	copyRequestHeaders(request.Header, c.Request.Header)
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer "+apiKey)
+	request.Header.Set("User-Agent", upstreamUserAgent)
 
 	response, err := chatClient.Do(request)
 	if err != nil {
@@ -375,6 +380,9 @@ func copyRequestHeaders(dst, src http.Header) {
 	skip["Host"] = true
 	skip["Content-Length"] = true
 	skip["Accept-Encoding"] = true
+	// The proxy identifies itself to the upstream rather than passing the
+	// caller's user agent through, see proxyChat.
+	skip["User-Agent"] = true
 
 	for key, values := range src {
 		if skip[http.CanonicalHeaderKey(key)] {

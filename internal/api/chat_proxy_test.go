@@ -39,12 +39,14 @@ func TestProxyChatForwardsTheBody(t *testing.T) {
 		gotContentType   string
 		gotBody          map[string]any
 		gotCallerHeaders string
+		gotUserAgent     string
 	)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
 		gotAuth = r.Header.Get("Authorization")
 		gotContentType = r.Header.Get("Content-Type")
 		gotCallerHeaders = r.Header.Get("X-Request-Id")
+		gotUserAgent = r.Header.Get("User-Agent")
 
 		body, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(body, &gotBody)
@@ -69,6 +71,9 @@ func TestProxyChatForwardsTheBody(t *testing.T) {
 	}
 	if gotCallerHeaders != "" {
 		t.Errorf("the data cloud credential path leaked a caller header: %q", gotCallerHeaders)
+	}
+	if gotUserAgent != "rqark" {
+		t.Errorf("User-Agent = %q, want rqark", gotUserAgent)
 	}
 	if gotBody["temperature"] != 0.2 {
 		t.Errorf("temperature = %v, want the caller's 0.2", gotBody["temperature"])
