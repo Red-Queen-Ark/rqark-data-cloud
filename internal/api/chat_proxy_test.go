@@ -73,8 +73,8 @@ func TestProxyChatForwardsTheBody(t *testing.T) {
 	if gotCallerHeaders != "" {
 		t.Errorf("the data cloud credential path leaked a caller header: %q", gotCallerHeaders)
 	}
-	if gotUserAgent != "rqark" {
-		t.Errorf("User-Agent = %q, want rqark", gotUserAgent)
+	if gotUserAgent != "rqark/1.0" {
+		t.Errorf("User-Agent = %q, want rqark/1.0", gotUserAgent)
 	}
 	if gotBody["temperature"] != 0.2 {
 		t.Errorf("temperature = %v, want the caller's 0.2", gotBody["temperature"])

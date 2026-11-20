@@ -96,7 +96,7 @@ var hopByHopHeaders = []string{
 // holds a data cloud token, not the provider key.
 //
 //	@Summary		Chat through a stored provider
-//	@Description	Forwards an OpenAI chat completion to the provider named by provider_id and relays the provider's response as it arrives, including a server-sent event stream when stream is true. The provider's api_key is added server-side, the call carries `User-Agent: rqark`, and the provider's stored headers are sent with their `${name}` placeholders filled from the call. The provider's status, headers and body are returned unchanged, so an upstream 401 or 429 reaches the caller as it was sent.
+//	@Description	Forwards an OpenAI chat completion to the provider named by provider_id and relays the provider's response as it arrives, including a server-sent event stream when stream is true. The provider's api_key is added server-side, the call carries `User-Agent: rqark/1.0`, and the provider's stored headers are sent with their `${name}` placeholders filled from the call. The provider's status, headers and body are returned unchanged, so an upstream 401 or 429 reaches the caller as it was sent.
 //	@Tags			chat
 //	@Accept			json
 //	@Produce		json
@@ -285,8 +285,11 @@ func usageRecord(userID, providerID uuid.UUID, tags usageTags, model string, usa
 }
 
 // upstreamUserAgent is the User-Agent every proxied call carries, so an upstream
-// sees the service rather than whichever client happened to call it.
-const upstreamUserAgent = "rqark"
+// sees the service rather than whichever client happened to call it. The product
+// token carries a version, as the OpenCode Go terms ask of a client that is not
+// a generic SDK: an upstream can then tell one generation of this client from
+// the next.
+const upstreamUserAgent = "rqark/1.0"
 
 // chatProxyTarget is everything about a call that comes from the provider row
 // and the request tags rather than from the body: where the call goes, the
