@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -91,5 +92,69 @@ func TestValidateProviderVendorChecksTheColumnLength(t *testing.T) {
 	}
 	if err := validateProviderVendor(strings.Repeat("v", maxProviderVendorLen+1)); err == nil {
 		t.Error("validateProviderVendor over the limit accepted the value, want an error")
+	}
+}
+
+// TestRenderProviderHeaderValueFillsKnownPlaceholders covers the template a
+// stored header may carry: a known ${name} is replaced, text around it stays,
+// and a value with no placeholder is returned unchanged.
+func TestRenderProviderHeaderValueFillsKnownPlaceholders(t *testing.T) {
+	vars := map[string]string{"session_id": "s-1", "provider_id": "p-1"}
+
+	got, ok := RenderProviderHeaderValue("${session_id}", vars)
+	if !ok || got != "s-1" {
+		t.Errorf("render = %q, %v, want s-1, true", got, ok)
+	}
+
+	got, ok = RenderProviderHeaderValue("rqark:${provider_id}/${session_id}", vars)
+	if !ok || got != "rqark:p-1/s-1" {
+		t.Errorf("render = %q, %v, want rqark:p-1/s-1, true", got, ok)
+	}
+
+	got, ok = RenderProviderHeaderValue("plain", vars)
+	if !ok || got != "plain" {
+		t.Errorf("render = %q, %v, want plain, true", got, ok)
+	}
+}
+
+// TestRenderProviderHeaderValueDropsAHeaderWithAMissingValue covers the call
+// that has nothing to fill a placeholder with: the header is dropped rather
+// than sent half-filled.
+func TestRenderProviderHeaderValueDropsAHeaderWithAMissingValue(t *testing.T) {
+	if got, ok := RenderProviderHeaderValue("${session_id}", map[string]string{}); ok {
+		t.Errorf("render = %q, %v, want the header dropped", got, ok)
+	}
+	if _, ok := RenderProviderHeaderValue("${session_id}", map[string]string{"session_id": ""}); ok {
+		t.Error("an empty variable filled the placeholder, want the header dropped")
+	}
+}
+
+// TestValidateProviderHeadersChecksPlaceholders covers the write-time check: a
+// placeholder the proxy cannot fill, and one that is never closed, are refused
+// rather than sent upstream as literal text.
+func TestValidateProviderHeadersChecksPlaceholders(t *testing.T) {
+	accepted := map[string]string{
+		"x-opencode-session": "${session_id}",
+		"X-Api-Version":      "2024-06-01",
+		"X-Mixed":            "rqark/${agent_id}",
+	}
+	if err := validateProviderHeaders(accepted); err != nil {
+		t.Errorf("validateProviderHeaders(%v) = %v, want nil", accepted, err)
+	}
+
+	for name, headers := range map[string]map[string]string{
+		"unknown variable":     {"X-Api": "${nope}"},
+		"empty variable name":  {"X-Api": "${}"},
+		"unclosed placeholder": {"X-Api": "${session_id"},
+	} {
+		err := validateProviderHeaders(headers)
+		if err == nil {
+			t.Errorf("%s: validateProviderHeaders accepted the value, want an error", name)
+			continue
+		}
+		var validation *ValidationError
+		if !errors.As(err, &validation) {
+			t.Errorf("%s: error = %v, want a ValidationError", name, err)
+		}
 	}
 }

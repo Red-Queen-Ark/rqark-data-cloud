@@ -96,7 +96,7 @@ var hopByHopHeaders = []string{
 // holds a data cloud token, not the provider key.
 //
 //	@Summary		Chat through a stored provider
-//	@Description	Forwards an OpenAI chat completion to the provider named by provider_id and relays the provider's response as it arrives, including a server-sent event stream when stream is true. The provider's api_key is added server-side. The provider's status, headers and body are returned unchanged, so an upstream 401 or 429 reaches the caller as it was sent.
+//	@Description	Forwards an OpenAI chat completion to the provider named by provider_id and relays the provider's response as it arrives, including a server-sent event stream when stream is true. The provider's api_key is added server-side, the call carries `User-Agent: rqark`, and the provider's stored headers are sent with their `${name}` placeholders filled from the call. The provider's status, headers and body are returned unchanged, so an upstream 401 or 429 reaches the caller as it was sent.
 //	@Tags			chat
 //	@Accept			json
 //	@Produce		json
@@ -221,7 +221,12 @@ func forwardChatCompletion(c *gin.Context, providerID uuid.UUID, fields map[stri
 		return
 	}
 
-	usage, recorded := proxyChat(c, view.APIBase, view.APIKey, payload, stream)
+	usage, recorded := proxyChat(c, chatProxyTarget{
+		APIBase: view.APIBase,
+		APIKey:  view.APIKey,
+		Headers: view.Headers,
+		Vars:    headerVariables(actor.ID, providerID, model, tags),
+	}, payload, stream)
 	if !recorded || usage == nil {
 		return
 	}
@@ -283,6 +288,66 @@ func usageRecord(userID, providerID uuid.UUID, tags usageTags, model string, usa
 // sees the service rather than whichever client happened to call it.
 const upstreamUserAgent = "rqark"
 
+// chatProxyTarget is everything about a call that comes from the provider row
+// and the request tags rather than from the body: where the call goes, the
+// credential it carries, the extra headers the owner stored, and the values
+// those headers may interpolate.
+type chatProxyTarget struct {
+	APIBase string
+	APIKey  string
+	// Headers are the provider's stored extra headers, with ${name} placeholders
+	// still in place. They are rendered against Vars in proxyChat.
+	Headers map[string]string
+	// Vars are the values a stored header may interpolate. A variable that is
+	// absent from the map has no value for this call, and a header that names it
+	// is left off.
+	Vars map[string]string
+}
+
+// headerVariables collects the values a stored header may interpolate for one
+// call. Everything here is something the call already knows; nothing is
+// invented, so a variable with no value is simply absent and the header that
+// names it is dropped upstream.
+func headerVariables(userID, providerID uuid.UUID, model string, tags usageTags) map[string]string {
+	vars := map[string]string{
+		"user_id":     userID.String(),
+		"provider_id": providerID.String(),
+		"model":       model,
+	}
+	if tags.SessionID != nil {
+		vars["session_id"] = tags.SessionID.String()
+	}
+	if tags.AgentID != nil {
+		vars["agent_id"] = tags.AgentID.String()
+	}
+	return vars
+}
+
+// applyProviderHeaders puts the owner's stored headers on the upstream request,
+// interpolating the ${name} placeholders against vars. A header naming a value
+// this call does not have is skipped: half a value is worse than none. The
+// headers that carry the proxy's own identity are set afterwards, so a stored
+// header cannot replace the provider credential.
+func applyProviderHeaders(header http.Header, stored map[string]string, vars map[string]string) {
+	skip := headerSet(hopByHopHeaders...)
+	skip["Host"] = true
+	skip["Content-Length"] = true
+	skip["Authorization"] = true
+	skip["User-Agent"] = true
+
+	for name, value := range stored {
+		canonical := http.CanonicalHeaderKey(name)
+		if skip[canonical] {
+			continue
+		}
+		rendered, ok := service.RenderProviderHeaderValue(value, vars)
+		if !ok {
+			continue
+		}
+		header.Set(canonical, rendered)
+	}
+}
+
 // proxyChat sends payload to the provider at apiBase, carrying the provider's
 // credential, and relays what comes back. The provider's status, headers and
 // body are passed on unchanged, so its own error codes reach the caller as they
@@ -291,15 +356,16 @@ const upstreamUserAgent = "rqark"
 // When the provider answered with a success, the usage object it carried is
 // returned so the caller can record it. The bytes relayed to the caller are the
 // same either way.
-func proxyChat(c *gin.Context, apiBase, apiKey string, payload []byte, stream bool) (*chatUsage, bool) {
-	request, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, chatUpstreamURL(apiBase), bytes.NewReader(payload))
+func proxyChat(c *gin.Context, target chatProxyTarget, payload []byte, stream bool) (*chatUsage, bool) {
+	request, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, chatUpstreamURL(target.APIBase), bytes.NewReader(payload))
 	if err != nil {
 		utils.Abort(c, utils.BadGateway, "The provider's api_base is not a usable URL.")
 		return nil, false
 	}
 	copyRequestHeaders(request.Header, c.Request.Header)
+	applyProviderHeaders(request.Header, target.Headers, target.Vars)
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer "+apiKey)
+	request.Header.Set("Authorization", "Bearer "+target.APIKey)
 	request.Header.Set("User-Agent", upstreamUserAgent)
 
 	response, err := chatClient.Do(request)

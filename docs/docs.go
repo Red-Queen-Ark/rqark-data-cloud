@@ -1073,7 +1073,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Forwards an OpenAI chat completion to the provider named by provider_id and relays the provider's response as it arrives, including a server-sent event stream when stream is true. The provider's api_key is added server-side. The provider's status, headers and body are returned unchanged, so an upstream 401 or 429 reaches the caller as it was sent.",
+                "description": "Forwards an OpenAI chat completion to the provider named by provider_id and relays the provider's response as it arrives, including a server-sent event stream when stream is true. The provider's api_key is added server-side, the call carries ` + "`" + `User-Agent: rqark` + "`" + `, and the provider's stored headers are sent with their ` + "`" + `${name}` + "`" + ` placeholders filled from the call. The provider's status, headers and body are returned unchanged, so an upstream 401 or 429 reaches the caller as it was sent.",
                 "consumes": [
                     "application/json"
                 ],

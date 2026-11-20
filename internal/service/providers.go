@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"regexp"
 	"strings"
 
 	"github.com/google/uuid"
@@ -384,6 +385,68 @@ func validateProviderVendor(vendor string) error {
 	return nil
 }
 
+// ProviderHeaderVariables are the values a stored header may interpolate with
+// the ${name} syntax. They let one header definition serve a whole
+// conversation, so a client can send `x-opencode-session: ${session_id}` without
+// the proxy knowing what that header means. The name is a variable of the call,
+// not of the header: the same token works in any header an upstream asks for.
+var ProviderHeaderVariables = []string{
+	"session_id",
+	"agent_id",
+	"user_id",
+	"provider_id",
+	"model",
+}
+
+// providerHeaderPlaceholder matches one ${name} placeholder in a header value.
+var providerHeaderPlaceholder = regexp.MustCompile(`\$\{([a-zA-Z0-9_]*)\}`)
+
+// providerHeaderVariableSet is the lookup validation uses.
+func providerHeaderVariableSet() map[string]bool {
+	set := make(map[string]bool, len(ProviderHeaderVariables))
+	for _, name := range ProviderHeaderVariables {
+		set[name] = true
+	}
+	return set
+}
+
+// RenderProviderHeaderValue substitutes the ${name} placeholders in one stored
+// header value with the values of the call. ok is false when a placeholder has
+// no value for this call, so the caller can leave the header off entirely
+// rather than send an empty or half-filled one.
+func RenderProviderHeaderValue(value string, vars map[string]string) (string, bool) {
+	missing := false
+	rendered := providerHeaderPlaceholder.ReplaceAllStringFunc(value, func(match string) string {
+		name := match[2 : len(match)-1]
+		replacement, ok := vars[name]
+		if !ok || replacement == "" {
+			missing = true
+			return ""
+		}
+		return replacement
+	})
+	if missing {
+		return "", false
+	}
+	return rendered, true
+}
+
+// validateProviderHeaderPlaceholders checks that a value only names variables
+// the proxy can fill. An unknown placeholder would be sent upstream verbatim, so
+// it is refused at write time instead.
+func validateProviderHeaderPlaceholders(headerName, value string) error {
+	for _, match := range providerHeaderPlaceholder.FindAllStringSubmatch(value, -1) {
+		name := match[1]
+		if !providerHeaderVariableSet()[name] {
+			return &ValidationError{Message: "headers carries an unknown placeholder ${" + name + "} in " + headerName + "."}
+		}
+	}
+	if strings.Count(value, "${") != len(providerHeaderPlaceholder.FindAllString(value, -1)) {
+		return &ValidationError{Message: "headers carries an unclosed placeholder in " + headerName + "."}
+	}
+	return nil
+}
+
 // validateProviderHeaders checks that every extra header can be put on an HTTP
 // request upstream. The proxy writes them with net/http, which refuses a name
 // that is not a token and a value carrying a line break, so the same rules are
@@ -405,6 +468,9 @@ func validateProviderHeaders(headers map[string]string) error {
 		}
 		if !isHeaderValueSafe(value) {
 			return &ValidationError{Message: "headers carries a value with a line break: " + name + "."}
+		}
+		if err := validateProviderHeaderPlaceholders(name, value); err != nil {
+			return err
 		}
 	}
 	return nil
