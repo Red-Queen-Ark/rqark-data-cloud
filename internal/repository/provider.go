@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sort"
 	"time"
@@ -31,21 +32,32 @@ const UnsetProviderPriority = -99
 // so a column the client never set stays NULL and is read back as null rather
 // than as 0 or false.
 type Provider struct {
-	ID               uuid.UUID `gorm:"type:uuid;primaryKey"`
-	UserID           uuid.UUID `gorm:"type:uuid;not null;index"`
-	Name             string    `gorm:"type:varchar(255);not null;default:''"`
-	ModelName        string    `gorm:"type:varchar(255);not null"`
-	APIKey           string    `gorm:"type:varchar(255);not null"`
-	APIBase          string    `gorm:"type:varchar(255);not null"`
-	Priority         int       `gorm:"type:integer;not null"`
-	ReasoningEffort  *string   `gorm:"type:varchar(16)"`
-	Thinking         *string   `gorm:"type:varchar(16)"`
-	Temperature      *float64  `gorm:"type:double precision"`
-	TopP             *float64  `gorm:"type:double precision"`
-	Seed             *int      `gorm:"type:integer"`
-	FrequencyPenalty *float64  `gorm:"type:double precision"`
-	PresencePenalty  *float64  `gorm:"type:double precision"`
-	Combine          bool      `gorm:"not null;default:false"`
+	ID     uuid.UUID `gorm:"type:uuid;primaryKey"`
+	UserID uuid.UUID `gorm:"type:uuid;not null;index"`
+	// Name is optional. The pair (user_id, name) is unique once the rows allow
+	// it: the index is created by EnsureProviderNameIndex rather than declared
+	// here, because AutoMigrate would fail on a table that already holds
+	// duplicates and a failed migration keeps the service from starting.
+	Name      string `gorm:"type:varchar(255);not null;default:''"`
+	ModelName string `gorm:"type:varchar(255);not null"`
+	APIKey    string `gorm:"type:varchar(255);not null"`
+	APIBase   string `gorm:"type:varchar(255);not null"`
+	// Vendor is the catalog id of a known upstream, or NULL for a custom
+	// endpoint. It only labels the provider; the credential and the base URL
+	// stay the owner's.
+	Vendor *string `gorm:"type:varchar(32)"`
+	// Headers holds extra request headers the upstream needs, as a JSON object
+	// of header name to value. NULL when the owner set none.
+	Headers          json.RawMessage `gorm:"serializer:json;type:jsonb"`
+	Priority         int             `gorm:"type:integer;not null"`
+	ReasoningEffort  *string         `gorm:"type:varchar(16)"`
+	Thinking         *string         `gorm:"type:varchar(16)"`
+	Temperature      *float64        `gorm:"type:double precision"`
+	TopP             *float64        `gorm:"type:double precision"`
+	Seed             *int            `gorm:"type:integer"`
+	FrequencyPenalty *float64        `gorm:"type:double precision"`
+	PresencePenalty  *float64        `gorm:"type:double precision"`
+	Combine          bool            `gorm:"not null;default:false"`
 	// IsPublic marks a provider its owner shares with every other user. Only a
 	// superuser may set it, and only the owner may change the row afterwards.
 	IsPublic bool `gorm:"not null;default:false;index"`
@@ -301,6 +313,50 @@ func DeleteProvider(ctx context.Context, db *gorm.DB, userID, id uuid.UUID) erro
 		return ErrProviderNotFound
 	}
 	return nil
+}
+
+// ProviderNameIndexName is the unique index over providers (user_id, name).
+const ProviderNameIndexName = "idx_providers_user_id_name"
+
+// ProviderNameDuplicate is one (user_id, name) pair that occurs more than once
+// in providers, so the unique index cannot be built.
+type ProviderNameDuplicate struct {
+	UserID uuid.UUID
+	Name   string
+	Count  int64
+}
+
+// EnsureProviderNameIndex creates the unique index over providers (user_id,
+// name), which makes a provider name identify at most one provider per owner.
+//
+// Existing installations may hold duplicates: the column was optional and not
+// unique before, so it is checked first. Any duplicate is returned and the index
+// is left uncreated instead of failing, so startup still succeeds and an
+// operator can clean the rows up and restart. A nil result with a nil error
+// means the index is in place.
+func EnsureProviderNameIndex(ctx context.Context, db *gorm.DB) ([]ProviderNameDuplicate, error) {
+	duplicates := []ProviderNameDuplicate{}
+	err := db.WithContext(ctx).
+		Raw(`SELECT user_id, name, COUNT(*) AS count
+			FROM providers
+			GROUP BY user_id, name
+			HAVING COUNT(*) > 1
+			ORDER BY user_id, name`).
+		Scan(&duplicates).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(duplicates) > 0 {
+		return duplicates, nil
+	}
+
+	err = db.WithContext(ctx).Exec(
+		"CREATE UNIQUE INDEX IF NOT EXISTS " + ProviderNameIndexName + " ON providers (user_id, name)",
+	).Error
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
 
 // providerLookupError maps GORM's not-found error onto the repository's own.
