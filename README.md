@@ -19,7 +19,6 @@ Every rqark application works against files on its own machine. This is the copy
 | [`rqark-agent-cloud`](../rqark-agent-cloud) | HTTP and WebSocket service over `rqark-app`. | Nothing directly. |
 | [`rqark-task`](../rqark-task) | Worker that runs scheduled agent tasks. | Claims and finalizes task runs over `/api/internal`. |
 | `rqark-data-cloud` | This repository. | — |
-| [`rqark-data-cloud-web-ui`](../rqark-data-cloud-web-ui) | Account and data management UI. | Calls this API. |
 
 ## Architecture
 
