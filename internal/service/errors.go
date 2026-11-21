@@ -9,7 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
+	"rqark-data-cloud/internal/utils"
 )
 
 // Errors the handlers map onto HTTP codes. Anything else is an internal error.

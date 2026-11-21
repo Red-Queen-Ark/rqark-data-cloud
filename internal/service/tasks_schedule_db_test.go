@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/repository"
 )
 
 // TestClaimSkipsADeactivatedUsersTasks covers the dispatcher's only user check: an

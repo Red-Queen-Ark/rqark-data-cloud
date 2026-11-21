@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
+	"rqark-data-cloud/internal/config"
+	"rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/utils"
 )
 
 // maxTaskNameLen is the width of the tasks.name column.

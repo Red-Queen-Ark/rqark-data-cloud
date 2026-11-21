@@ -7,7 +7,7 @@ import (
 	"log"
 	"strings"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
+	"rqark-data-cloud/internal/config"
 )
 
 // Message is one outgoing mail. HTML may be empty, in which case only the text

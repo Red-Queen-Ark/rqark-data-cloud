@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
+	"rqark-data-cloud/internal/config"
 )
 
 // smtpMailer delivers over SMTP. EMAIL_USE_TLS is STARTTLS on a plain

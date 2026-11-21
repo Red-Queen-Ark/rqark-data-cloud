@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
+	"rqark-data-cloud/internal/config"
 )
 
 // fakeSMTP is a one-connection SMTP server: enough of the dialogue for net/smtp

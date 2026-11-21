@@ -8,12 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	internalapi "gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/api/internal"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/middlewares"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/service"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
+	internalapi "rqark-data-cloud/internal/api/internal"
+	"rqark-data-cloud/internal/config"
+	"rqark-data-cloud/internal/middlewares"
+	"rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/service"
+	"rqark-data-cloud/internal/utils"
 )
 
 // APIRouter registers every route of the service.

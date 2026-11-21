@@ -8,10 +8,10 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/api"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/service"
+	"rqark-data-cloud/internal/api"
+	"rqark-data-cloud/internal/config"
+	"rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/service"
 )
 
 //go:generate go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g main.go -d .,../../internal/api,../../internal/utils,../../internal/repository -o ../../docs --parseInternal --exclude ../../internal/api/internal

@@ -7,9 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/service"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
+	"rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/service"
+	"rqark-data-cloud/internal/utils"
 )
 
 // GroupDTO is the group representation returned by every group endpoint.

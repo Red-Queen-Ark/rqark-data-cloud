@@ -10,7 +10,7 @@ import (
 	"github.com/swaggo/swag"
 	"gopkg.in/yaml.v2"
 
-	_ "gitea.carhyme.top/RedQueenArk/rqark-data-cloud/docs"
+	_ "rqark-data-cloud/docs"
 )
 
 var (

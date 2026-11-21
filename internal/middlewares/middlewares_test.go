@@ -12,8 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
+	"rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/utils"
 )
 
 // testSecret is the signing key of the access tokens the tests mint.

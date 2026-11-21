@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/repository"
 )
 
 // userConfigTestDB opens the shared test database with the user and config

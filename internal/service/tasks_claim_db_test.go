@@ -13,9 +13,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"gorm.io/gorm"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
+	"rqark-data-cloud/internal/config"
+	"rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/utils"
 )
 
 // claimTestDB opens a database the claim tests may empty.

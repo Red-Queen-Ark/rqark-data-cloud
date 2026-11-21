@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/repository"
 )
 
 // TestRunTaskNowLeavesTheScheduleAlone covers the rule that makes a manual run

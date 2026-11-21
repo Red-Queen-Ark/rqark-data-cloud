@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/service"
+	"rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/service"
 )
 
 // SystemConfigDTO is one deployment-wide config entry in its wire form. It has
