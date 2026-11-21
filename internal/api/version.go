@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/version"
+	"rqark-data-cloud/internal/version"
 )
 
 type VersionResponse struct {

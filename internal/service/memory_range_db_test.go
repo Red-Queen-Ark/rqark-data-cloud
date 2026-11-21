@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/repository"
 )
 
 // membership names the rows a search returned, so a failure says which ones

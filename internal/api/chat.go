@@ -12,10 +12,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/middlewares"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/service"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/version"
+	"rqark-data-cloud/internal/middlewares"
+	"rqark-data-cloud/internal/service"
+	"rqark-data-cloud/internal/utils"
+	"rqark-data-cloud/internal/version"
 )
 
 // ChatRequest is the body of POST /api/chat: the body of an OpenAI

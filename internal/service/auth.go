@@ -13,9 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
+	"rqark-data-cloud/internal/config"
+	"rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/utils"
 )
 
 // Redis key layout and lifetimes for the two kinds of opaque token. Only the

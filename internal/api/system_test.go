@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
+	"rqark-data-cloud/internal/config"
 )
 
 // systemRouterWithRoutes builds a router carrying the system and auth routes a

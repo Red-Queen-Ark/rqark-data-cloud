@@ -8,7 +8,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/repository"
 )
 
 // shareAgent marks an agent public, the way a superuser does, and undoes it

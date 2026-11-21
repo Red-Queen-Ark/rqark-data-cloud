@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/config"
+	"rqark-data-cloud/internal/repository"
 )
 
 // SetAgentStateInput is the body of PUT /api/memory/state. Version is the

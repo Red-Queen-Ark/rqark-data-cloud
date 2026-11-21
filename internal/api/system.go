@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
+	"rqark-data-cloud/internal/config"
 )
 
 // SystemConfigResponse is what a client needs to know about the deployment

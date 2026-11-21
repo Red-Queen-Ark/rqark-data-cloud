@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/config"
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/config"
+	"rqark-data-cloud/internal/repository"
 )
 
 // UpdateGroupInput is a partial update: a nil field is left untouched.

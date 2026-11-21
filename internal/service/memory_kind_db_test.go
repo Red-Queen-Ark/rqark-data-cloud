@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/repository"
 )
 
 // createMemoryOfKind writes one row of the named kind, occurred at now.

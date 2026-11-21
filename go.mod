@@ -1,4 +1,4 @@
-module gitea.carhyme.top/RedQueenArk/rqark-data-cloud
+module rqark-data-cloud
 
 go 1.26.3
 

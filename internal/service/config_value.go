@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"regexp"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/utils"
+	"rqark-data-cloud/internal/utils"
 )
 
 // The rules below are shared by every key/value config table: user_configs and

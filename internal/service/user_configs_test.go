@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"gitea.carhyme.top/RedQueenArk/rqark-data-cloud/internal/repository"
+	"rqark-data-cloud/internal/repository"
 )
 
 // TestMissingUserConfigDefaults covers the selection the fill is built from: a
