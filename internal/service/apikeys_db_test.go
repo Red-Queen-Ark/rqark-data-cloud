@@ -41,6 +41,12 @@ func testDatabase(t *testing.T) *gorm.DB {
 	config.SecretKey = "test-secret"
 	t.Cleanup(func() {
 		config.DB, config.SecretKey = previousDB, previousSecret
+		// Every database test opens its own pool. Leaving them open runs the
+		// server out of connections before the package finishes.
+		sqlDB, err := db.DB()
+		if err == nil {
+			_ = sqlDB.Close()
+		}
 	})
 	return db
 }
