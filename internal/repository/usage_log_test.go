@@ -28,6 +28,14 @@ func usageListTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(&User{}, &APIKey{}, &UsageLog{}); err != nil {
 		t.Fatalf("automigrate: %v", err)
 	}
+	// One pool per test would run the server out of connections before the
+	// package finished, so the pool this test opened is closed with it.
+	t.Cleanup(func() {
+		sqlDB, err := db.DB()
+		if err == nil {
+			_ = sqlDB.Close()
+		}
+	})
 	return db
 }
 

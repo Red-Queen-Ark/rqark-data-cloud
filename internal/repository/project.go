@@ -24,9 +24,9 @@ var ErrProjectNotFound = errors.New("repository: project not found")
 type Project struct {
 	ID uuid.UUID `gorm:"type:uuid;primaryKey"`
 	// UserID leads both unique indexes, which also serve the lookup by owner.
-	UserID      uuid.UUID `gorm:"type:uuid;not null;index:idx_projects_user_id_project_name,priority:1;index:idx_projects_user_id_project_path,priority:1"`
-	ProjectName string    `gorm:"type:varchar(64);not null;index:idx_projects_user_id_project_name,priority:2"`
-	ProjectPath string    `gorm:"type:varchar(512);not null;index:idx_projects_user_id_project_path,priority:2"`
+	UserID      uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_projects_user_id_project_name,priority:1;uniqueIndex:idx_projects_user_id_project_path,priority:1"`
+	ProjectName string    `gorm:"type:varchar(64);not null;uniqueIndex:idx_projects_user_id_project_name,priority:2"`
+	ProjectPath string    `gorm:"type:varchar(512);not null;uniqueIndex:idx_projects_user_id_project_path,priority:2"`
 	CreatedAt   time.Time `gorm:"not null"`
 	UpdatedAt   time.Time `gorm:"not null"`
 

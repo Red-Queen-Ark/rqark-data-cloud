@@ -26,6 +26,9 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      # Every database test opens its own pool and closes it when the test ends.
+      # Before that cleanup existed, ~30 unfinished pools hit the server's
+      # connection limit partway through the package.
       TEST_POSTGRES_DSN: postgres://rqark:rqark@postgres:5432/rqark_test?sslmode=disable
     steps:
     - name: Checkout code
