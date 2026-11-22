@@ -127,7 +127,9 @@ func TestUpdateTodoKeepsDoneAtInSync(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateTodo(done) again: %v", err)
 	}
-	if again.DoneAt == nil || !again.DoneAt.Equal(first) {
+	if again.DoneAt == nil || !again.DoneAt.Equal(first.Truncate(time.Microsecond)) {
+		// The first stamp comes from the struct that was written; the second is
+		// read back from timestamptz, which keeps microseconds.
 		t.Errorf("done_at = %v on a repeat tick, want %v", again.DoneAt, first)
 	}
 

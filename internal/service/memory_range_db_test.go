@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"rqark-data-cloud/internal/repository"
 )
 
@@ -34,6 +36,19 @@ func TestSearchMemoriesBoundsTheWindow(t *testing.T) {
 	from := now.Add(-7 * 24 * time.Hour)
 	to := now.Add(-1 * 24 * time.Hour)
 
+	// Every search records a hit, and a hit lifts a row's decayed score. Reset
+	// the counters before each call so one assertion's ranking is not decided by
+	// the calls above it.
+	resetHits := func() {
+		t.Helper()
+		if err := db.Model(&repository.Memory{}).
+			Where("id IN ?", []uuid.UUID{oldest.ID, middle.ID, newest.ID}).
+			Updates(map[string]any{"hits": 0, "last_used_at": nil}).Error; err != nil {
+			t.Fatalf("reset hits: %v", err)
+		}
+	}
+
+	resetHits()
 	rows, err := SearchMemories(context.Background(), user.ID, agent.ID, "", nil, &from, &to)
 	if err != nil {
 		t.Fatalf("search window: %v", err)
@@ -44,6 +59,7 @@ func TestSearchMemoriesBoundsTheWindow(t *testing.T) {
 
 	// An upper bound on its own is the older question: what was true before a
 	// moment. Both rows older than it come back, newest first.
+	resetHits()
 	before, err := SearchMemories(context.Background(), user.ID, agent.ID, "", nil, nil, &to)
 	if err != nil {
 		t.Fatalf("search to: %v", err)
@@ -53,6 +69,7 @@ func TestSearchMemoriesBoundsTheWindow(t *testing.T) {
 	}
 
 	// A lower bound alone is the other half of the same question.
+	resetHits()
 	after, err := SearchMemories(context.Background(), user.ID, agent.ID, "", nil, &from, nil)
 	if err != nil {
 		t.Fatalf("search from: %v", err)

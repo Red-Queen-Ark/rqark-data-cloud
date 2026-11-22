@@ -569,7 +569,9 @@ func TestUpdateAPIKeyClearsAndSetsExpiry(t *testing.T) {
 	if _, err := UpdateAPIKey(context.Background(), owner.ID, key.ID, UpdateAPIKeyInput{}); err != nil {
 		t.Fatalf("update nothing: %v", err)
 	}
-	if stored := reload(t, db, owner, key.ID); stored.ExpiresAt == nil || !stored.ExpiresAt.Equal(later) {
+	if stored := reload(t, db, owner, key.ID); stored.ExpiresAt == nil || !stored.ExpiresAt.Equal(later.Truncate(time.Microsecond)) {
+		// timestamptz stores microseconds, so compare at that precision rather
+		// than to the nanosecond the value was written with.
 		t.Errorf("expires_at = %v, want %v", stored.ExpiresAt, later)
 	}
 }
