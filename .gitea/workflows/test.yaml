@@ -1,0 +1,52 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: rqark_test
+          POSTGRES_USER: rqark
+          POSTGRES_PASSWORD: rqark
+        options: >-
+          --health-cmd "pg_isready -U rqark -d rqark_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_POSTGRES_DSN: postgres://rqark:rqark@postgres:5432/rqark_test?sslmode=disable
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    - name: Check formatting
+      run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+
+    - name: Vet
+      run: go vet ./...
+
+    - name: Check the generated swagger is current
+      run: |
+        go generate ./...
+        test -z "$(git status --porcelain)" || { git status --porcelain; git diff; exit 1; }
+
+    - name: Test
+      run: go test ./...
