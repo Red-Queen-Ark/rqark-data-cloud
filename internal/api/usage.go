@@ -39,6 +39,11 @@ type UsageQuery struct {
 	// with. It is a name rather than an id because that is what the caller
 	// knows; two keys may share a name, in which case both match.
 	APIKeyName *string `json:"api_key_name" example:"laptop"`
+
+	// Model selects rows by the model the proxy reported. It is an exact match:
+	// the model string is stored as it arrived, so a caller filters by the same
+	// label the listing returns.
+	Model *string `json:"model" example:"deepseek-flash"`
 }
 
 // UsageLogDTO is one usage row as the listing returns it. It is the stored row
@@ -102,6 +107,7 @@ func toUsageLogFilter(query UsageQuery, scope *uuid.UUID) repository.UsageLogFil
 		ProviderID:   query.ProviderID,
 		IsCompaction: query.IsCompaction,
 		APIKeyName:   query.APIKeyName,
+		Model:        query.Model,
 	}
 }
 
@@ -123,7 +129,7 @@ func usageScope(c *gin.Context, actor *repository.User, query UsageQuery) (*uuid
 // ListUsage returns the caller's usage rows.
 //
 //	@Summary		List usage records
-//	@Description	Returns every usage row that matches the body, newest first. It is not paginated and not aggregated: the client receives the rows and charts them itself. An empty body returns every row the caller may read. A plain caller reads its own rows only and may not send user_id; a superuser reads every user's rows, and may narrow them with user_id. api_key_name selects rows by the name of the key they were made with, and each row reports that name; a row made with an access token has none.
+//	@Description	Returns every usage row that matches the body, newest first. It is not paginated and not aggregated: the client receives the rows and charts them itself. An empty body returns every row the caller may read. A plain caller reads its own rows only and may not send user_id; a superuser reads every user's rows, and may narrow them with user_id. api_key_name selects rows by the name of the key they were made with, and each row reports that name; a row made with an access token has none. model selects rows by the exact model string the proxy reported.
 //	@Tags			usage
 //	@Security		BearerAuth
 //	@Accept			json

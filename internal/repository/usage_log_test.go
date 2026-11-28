@@ -220,6 +220,20 @@ func TestListUsageLogsFilters(t *testing.T) {
 		t.Fatalf("rows by compaction = %+v, want one compaction row", byCompaction)
 	}
 
+	model := "deepseek-flash"
+	byModel, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: &owner.ID, Model: &model})
+	if err != nil {
+		t.Fatalf("list by model: %v", err)
+	}
+	if len(byModel) != 2 {
+		t.Fatalf("rows by model = %d, want 2", len(byModel))
+	}
+	for _, entry := range byModel {
+		if entry.Model != model {
+			t.Fatalf("row model = %q, want %q", entry.Model, model)
+		}
+	}
+
 	from := time.Now().UTC().Add(-90 * time.Minute)
 	byFrom, err := ListUsageLogs(context.Background(), db, UsageLogFilter{UserID: &owner.ID, From: &from})
 	if err != nil {

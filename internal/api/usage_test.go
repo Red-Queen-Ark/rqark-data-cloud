@@ -70,3 +70,19 @@ func TestUsageScopeLetsASuperuserChoose(t *testing.T) {
 		t.Fatalf("scope = %v, want nil for every user", scope)
 	}
 }
+
+// TestUsageQueryCarriesTheModelFilter covers the mapping: a model named in the
+// body reaches the repository filter, and an absent one stays nil so it applies
+// no predicate.
+func TestUsageQueryCarriesTheModelFilter(t *testing.T) {
+	model := "deepseek-flash"
+	filter := toUsageLogFilter(UsageQuery{Model: &model}, nil)
+	if filter.Model == nil || *filter.Model != model {
+		t.Fatalf("filter.Model = %v, want %q", filter.Model, model)
+	}
+
+	filter = toUsageLogFilter(UsageQuery{}, nil)
+	if filter.Model != nil {
+		t.Fatalf("filter.Model = %v, want nil", filter.Model)
+	}
+}
