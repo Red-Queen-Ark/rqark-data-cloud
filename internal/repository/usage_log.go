@@ -128,6 +128,9 @@ func SumUsageByUser(ctx context.Context, db *gorm.DB, userID uuid.UUID, from, to
 // UserID is the owner to restrict to. It is nil only for a superuser listing
 // every user's rows; the handler decides that, and a request-scoped listing
 // always sets it.
+//
+// Model matches usage_logs.model exactly, against the same stored string the
+// listing returns.
 type UsageLogFilter struct {
 	UserID       *uuid.UUID
 	From         *time.Time
@@ -137,6 +140,7 @@ type UsageLogFilter struct {
 	ProviderID   *uuid.UUID
 	IsCompaction *bool
 	APIKeyName   *string
+	Model        *string
 }
 
 // UsageLogEntry is a stored row together with the name of the key it was made

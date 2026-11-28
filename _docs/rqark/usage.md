@@ -47,7 +47,8 @@
   "agent_id": "8e2f5d3b-2b2b-4b2b-9b2b-2b2b2b2b2b2b",
   "provider_id": "1b2c3d4e-1a1a-4a1a-8a1a-1a1a1a1a1a1a",
   "is_compaction": false,
-  "api_key_name": "laptop"
+  "api_key_name": "laptop",
+  "model": "deepseek-flash"
 }
 ```
 
@@ -94,4 +95,5 @@
 - **`user_id` 只准 superuser 帶入** —— 普通呼叫方永遠只讀到自己嘅列；帶了 `user_id` 會回 `400` 而唔係靜默忽略，免得呼叫方誤以為已被採納。
 - **superuser 用同一條 route 讀全部人** —— 唔另設 admin path；唔帶 `user_id` 即係全體，帶了即係該使用者。
 - **`api_key_name` 靠 join 解析** —— 以 left join 取 `api_keys.name`，所以 access token 呼叫嘅列、以及 key 已被刪除嘅列一樣會回傳，只係 `api_key_name` 為 `null`。
+- **`model` 係精確比對** —— 按 `usage_logs.model` 原樣比對，呼叫方用清單回傳嘅同一個字串篩選即可，唔做大小寫或前綴模糊比對。
 - **用量列唔會隨 session 消失** —— 刪除 session / agent / provider 唔影響已寫入嘅列。
