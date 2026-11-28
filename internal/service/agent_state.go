@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -83,7 +84,7 @@ func validateStateContent(content, source string) (string, error) {
 		return "", &InvalidContentError{Message: "content is required; delete the state to remove it."}
 	}
 	if utf8.RuneCountInString(content) > repository.MaxStateContentLen {
-		return "", &InvalidContentError{Message: "content must be at most 2000 characters."}
+		return "", &InvalidContentError{Message: fmt.Sprintf("content must be at most %d characters.", repository.MaxStateContentLen)}
 	}
 	if len(source) > maxMemorySourceLen {
 		return "", &InvalidContentError{Message: "source must be at most 32 characters."}
