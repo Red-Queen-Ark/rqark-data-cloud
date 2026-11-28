@@ -183,6 +183,103 @@ func TestProxyChatStreamsWithoutBuffering(t *testing.T) {
 	}
 }
 
+// TestProxyChatKeepsASilentStreamAlive covers the slow model: while the
+// provider says nothing, the relay writes keepalives of its own, so a reverse
+// proxy timing the response out on the gap between bytes has something to read.
+// The keepalives are comments, so the events around them are untouched.
+func TestProxyChatKeepsASilentStreamAlive(t *testing.T) {
+	previous := sseHeartbeatInterval
+	sseHeartbeatInterval = 20 * time.Millisecond
+	t.Cleanup(func() { sseHeartbeatInterval = previous })
+
+	silent := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"he\"}}]}\n\n"))
+		w.(http.Flusher).Flush()
+
+		<-silent
+
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+		w.(http.Flusher).Flush()
+	}))
+	defer upstream.Close()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(`{"messages":[],"stream":true}`))
+
+	done := make(chan struct{})
+	go func() {
+		_, _ = proxyChat(context, chatProxyTarget{APIBase: upstream.URL, APIKey: "sk-provider"}, []byte(`{"messages":[],"stream":true}`), true)
+		close(done)
+	}()
+
+	// Long enough for several ticks, so the assertion is about a stream that
+	// stayed open rather than about one lucky write.
+	time.Sleep(150 * time.Millisecond)
+	close(silent)
+	<-done
+
+	body := recorder.Body.String()
+	if !strings.Contains(body, sseHeartbeat) {
+		t.Fatalf("body = %q, want a keepalive while the provider was silent", body)
+	}
+	if strings.Index(body, sseHeartbeat) > strings.Index(body, "[DONE]") {
+		t.Errorf("body = %q, want the keepalive before the provider resumed", body)
+	}
+	// The events still parse: the keepalives sit between them, not inside one.
+	if !strings.Contains(body, "{\"delta\":{\"content\":\"he\"}}") {
+		t.Errorf("body = %q, want the first event intact", body)
+	}
+}
+
+// TestProxyChatNeverSplitsALineWithAKeepalive covers the one place a keepalive
+// would do harm: a provider that stalls halfway through a line. A comment
+// written there would split the provider's bytes in two, so the relay waits for
+// the line to finish instead.
+func TestProxyChatNeverSplitsALineWithAKeepalive(t *testing.T) {
+	previous := sseHeartbeatInterval
+	sseHeartbeatInterval = 20 * time.Millisecond
+	t.Cleanup(func() { sseHeartbeatInterval = previous })
+
+	finish := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		// Half a line, then silence.
+		_, _ = w.Write([]byte("data: {\"choices\""))
+		w.(http.Flusher).Flush()
+
+		<-finish
+
+		_, _ = w.Write([]byte(":[]}\n\ndata: [DONE]\n\n"))
+		w.(http.Flusher).Flush()
+	}))
+	defer upstream.Close()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(`{"messages":[],"stream":true}`))
+
+	done := make(chan struct{})
+	go func() {
+		_, _ = proxyChat(context, chatProxyTarget{APIBase: upstream.URL, APIKey: "sk-provider"}, []byte(`{"messages":[],"stream":true}`), true)
+		close(done)
+	}()
+
+	time.Sleep(150 * time.Millisecond)
+	close(finish)
+	<-done
+
+	if !strings.Contains(recorder.Body.String(), "data: {\"choices\":[]}") {
+		t.Fatalf("body = %q, want the provider's line to arrive whole", recorder.Body.String())
+	}
+}
+
 // streamWriter reports the first write, which is what tells a flushed stream
 // from a buffered one.
 type streamWriter struct {

@@ -2119,7 +2119,10 @@ paths:
         the call carries `User-Agent: rqark/<version>` with the build''s version,
         and the provider''s stored headers are sent with their `${name}` placeholders
         filled from the call. The provider''s status, headers and body are returned
-        unchanged, so an upstream 401 or 429 reaches the caller as it was sent.'
+        unchanged, so an upstream 401 or 429 reaches the caller as it was sent. While
+        a streaming provider is silent the response carries SSE comment lines (`:
+        keepalive`), which a parser ignores: they exist so a reverse proxy in front
+        of this service does not time a slow model out on the gap between bytes.'
       parameters:
       - description: OpenAI chat completion body, plus provider_id
         in: body
@@ -2163,7 +2166,8 @@ paths:
       description: Same as POST /chat, except the provider is named by the path and
         the body carries no provider_id. It exists so an OpenAI client can reach the
         proxy by setting base_url to /api/chat/{uuid} and its api_key to a data cloud
-        token.
+        token. A streamed answer carries the same SSE comment keepalives as POST /chat
+        while the provider is silent.
       parameters:
       - description: Provider ID
         in: path
