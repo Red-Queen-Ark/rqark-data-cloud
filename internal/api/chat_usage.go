@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -247,29 +248,114 @@ func relayCollectingBody(w gin.ResponseWriter, body io.Reader) *chatUsage {
 	return envelope.Usage
 }
 
+// sseHeartbeatInterval is how long the relay lets the provider stay silent
+// before it writes a keepalive of its own.
+//
+// A reverse proxy in front of this service times a response out on the gap
+// between bytes, not on the gap between answers: nginx's proxy_read_timeout is
+// 90 seconds in the bundled configuration and 60 with the documented example,
+// and a model that thinks for longer than that leaves the socket with nothing
+// on it. The proxy then closes a connection whose headers already said 200, so
+// the caller sees a truncated stream rather than an error.
+//
+// 15 seconds is well under either timeout, so no deployment has to raise one.
+// It is a variable so that a test does not have to wait for it.
+var sseHeartbeatInterval = 15 * time.Second
+
+// sseHeartbeat is one SSE comment line. A parser ignores it, and it never ends
+// an event, so it is safe to write between lines of an event that is still
+// being assembled.
+const sseHeartbeat = ": keepalive\n"
+
+// sseChunk is one read from the provider, or the error that ended the stream.
+type sseChunk struct {
+	data []byte
+	err  error
+}
+
 // relayCollectingStream relays a server-sent event stream and returns the last
 // usage object it carried. The caller's bytes are relayed exactly as read. Only
 // the event being assembled is held in memory, so the footprint does not grow
 // with the length of the stream.
+//
+// While the provider is silent the relay writes a keepalive comment of its own,
+// which keeps a reverse proxy in front of this service from timing the response
+// out on a slow model. The keepalives are never written inside a line, so a
+// caller's parser only ever sees whole lines.
 func relayCollectingStream(w gin.ResponseWriter, body io.Reader) *chatUsage {
 	collector := &sseUsageCollector{}
-	buffer := make([]byte, 32*1024)
+	chunks := make(chan sseChunk)
+	readDone := make(chan struct{})
+	defer close(readDone)
 
+	go readSSEChunks(body, chunks, readDone)
+
+	idle := time.NewTimer(sseHeartbeatInterval)
+	defer idle.Stop()
+
+	for {
+		select {
+		case chunk, open := <-chunks:
+			if !open {
+				collector.endOfStream()
+				return collector.last
+			}
+			if chunk.data != nil {
+				collector.feed(chunk.data)
+				if _, err := w.Write(chunk.data); err != nil {
+					return nil
+				}
+				w.Flush()
+				// The provider just spoke, so the wait starts again.
+				idle.Reset(sseHeartbeatInterval)
+			}
+			if chunk.err != nil {
+				collector.endOfStream()
+				return collector.last
+			}
+		case <-idle.C:
+			if collector.atLineStart() {
+				if _, err := io.WriteString(w, sseHeartbeat); err != nil {
+					return nil
+				}
+				w.Flush()
+			}
+			// A provider that stalls in the middle of a line is retried on the
+			// next tick, since a keepalive there would split its line in two.
+			idle.Reset(sseHeartbeatInterval)
+		}
+	}
+}
+
+// readSSEChunks reads the provider's body into chunks until it ends, so the
+// relay above can tell silence from a stalled read. Each chunk gets its own
+// buffer: the reader hands it over rather than reuse one the relay is writing.
+//
+// The reader stops when the relay returns, and closing the response body is what
+// ends a read that is still blocked.
+func readSSEChunks(body io.Reader, chunks chan<- sseChunk, done <-chan struct{}) {
+	defer close(chunks)
+
+	buffer := make([]byte, 32*1024)
 	for {
 		n, err := body.Read(buffer)
 		if n > 0 {
-			collector.feed(buffer[:n])
-			if _, writeErr := w.Write(buffer[:n]); writeErr != nil {
-				return nil
+			chunk := sseChunk{data: make([]byte, n)}
+			copy(chunk.data, buffer[:n])
+			select {
+			case chunks <- chunk:
+			case <-done:
+				return
 			}
-			w.Flush()
 		}
 		if err != nil {
-			break
+			select {
+			case chunks <- sseChunk{err: err}:
+			case <-done:
+			}
+			return
 		}
 	}
-	collector.endOfStream()
-	return collector.last
 }
 
 // sseEventLimit bounds one event's data. A provider that sends a single event
@@ -381,6 +467,12 @@ func (s *sseUsageCollector) endEvent() {
 	if envelope.Usage != nil {
 		s.last = envelope.Usage
 	}
+}
+
+// atLineStart reports whether the collector holds no partial line, which is the
+// only place a keepalive can be written without splitting one.
+func (s *sseUsageCollector) atLineStart() bool {
+	return len(s.line) == 0
 }
 
 // endOfStream flushes an event that was not terminated by a blank line.
