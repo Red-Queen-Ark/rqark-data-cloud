@@ -17,7 +17,19 @@ var ErrStateNotFound = errors.New("repository: agent state not found")
 var ErrStateConflict = errors.New("repository: agent state version conflict")
 
 // MaxStateContentLen is the limit the content CHECK constraint enforces.
-const MaxStateContentLen = 2000
+//
+// The board is injected at the start of every turn, so this is an attention
+// budget rather than a storage one. 8000 characters sits at the top of the range
+// mainstream always-injected boxes allow (ChatGPT custom instructions 5000,
+// Letta core-memory blocks 5000, GPT instructions ~8000 reported), which is four
+// times the ceiling the board shipped with and still under ~2% of a 200K-token
+// window even when the whole board is Chinese.
+const MaxStateContentLen = 8000
+
+// agentStateContentCheck is the name of the content CHECK constraint. It is
+// named so MigrateAgentStateContentLimit can drop and re-add the constraint on a
+// table that already exists.
+const agentStateContentCheck = "chk_agent_state_content_length"
 
 // AgentState is the state board: one overwritable row per (user, agent) pair.
 //
@@ -28,8 +40,10 @@ const MaxStateContentLen = 2000
 type AgentState struct {
 	UserID  uuid.UUID `gorm:"type:uuid;primaryKey"`
 	AgentID uuid.UUID `gorm:"type:uuid;primaryKey"`
-	// Content is capped at 2000 characters by a CHECK constraint.
-	Content string `gorm:"type:text;not null;check:chk_agent_state_content_length,char_length(content) BETWEEN 1 AND 2000"`
+	// Content is capped by a CHECK constraint at MaxStateContentLen. The literal
+	// below has to stay in step with that constant; a comment cannot be
+	// interpolated into a struct tag.
+	Content string `gorm:"type:text;not null;check:chk_agent_state_content_length,char_length(content) BETWEEN 1 AND 8000"`
 	// Version counts writes: the first row is 1 and every upsert adds one. A
 	// writer that sends an expected version is refused when it falls behind.
 	Version int `gorm:"type:integer;not null;default:1"`
@@ -47,6 +61,31 @@ type AgentState struct {
 
 // TableName pins the table name to the singular used by the design.
 func (AgentState) TableName() string { return "agent_state" }
+
+// MigrateAgentStateContentLimit brings an existing agent_state table up to the
+// current content ceiling.
+//
+// AutoMigrate only writes a CHECK constraint while it creates the table: on a
+// table that already exists it sees the constraint by name and leaves it alone,
+// so raising MaxStateContentLen would otherwise change nothing on a database that
+// has been running. Widening is safe for stored rows, which are all under the old
+// ceiling, so the constraint is dropped and re-added from the current struct tag.
+//
+// Call it after AutoMigrate. Two replicas starting together both end with the
+// same constraint, since the re-add is idempotent in shape.
+func MigrateAgentStateContentLimit(ctx context.Context, db *gorm.DB) error {
+	if !db.Migrator().HasTable(&AgentState{}) {
+		// Nothing to migrate: AutoMigrate will create the table with the current
+		// ceiling.
+		return nil
+	}
+	if db.Migrator().HasConstraint(&AgentState{}, agentStateContentCheck) {
+		if err := db.Migrator().DropConstraint(&AgentState{}, agentStateContentCheck); err != nil {
+			return err
+		}
+	}
+	return db.WithContext(ctx).Migrator().CreateConstraint(&AgentState{}, agentStateContentCheck)
+}
 
 // GetAgentState loads the state of one (user, agent) pair. A pair that has never
 // been written reports ErrStateNotFound.

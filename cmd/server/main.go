@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -76,6 +77,11 @@ func main() {
 	config.InitDatabase()
 	if err := config.DB.AutoMigrate(&repository.User{}, &repository.Group{}, &repository.UserGroup{}, &repository.Agent{}, &repository.Provider{}, &repository.Project{}, &repository.Session{}, &repository.SessionMessage{}, &repository.APIKey{}, &repository.UserConfig{}, &repository.SystemConfig{}, &repository.ProviderPriority{}, &repository.AgentDefault{}, &repository.Task{}, &repository.TaskRun{}, &repository.Memory{}, &repository.AgentState{}, &repository.Sop{}, &repository.Todo{}, &repository.UsageLog{}); err != nil {
 		log.Fatalf("main: automigrate: %v", err)
+	}
+	// AutoMigrate leaves an existing CHECK constraint alone, so the state board's
+	// content ceiling has to be re-applied by hand when it changes.
+	if err := repository.MigrateAgentStateContentLimit(context.Background(), config.DB); err != nil {
+		log.Fatalf("main: migrate agent state content limit: %v", err)
 	}
 	// An event row stops being worth anything after 90 days; prune once at
 	// startup and then daily rather than on a write, so retention does not

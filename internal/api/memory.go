@@ -562,7 +562,7 @@ func GetAgentState(c *gin.Context) {
 // PutAgentState overwrites the state board of one agent.
 //
 //	@Summary		Overwrite the state board
-//	@Description	Upserts the state board of one agent the caller may use. The agent may write here, unlike memory, which only the user deletes. version, when sent, is the version the caller read: a write carrying a version the row no longer holds answers 409 STATE_CONFLICT and changes nothing, so a stale writer cannot silently undo a newer board. Omitting version overwrites whatever is stored. content is markdown, at most 2000 characters, and blank is refused: DELETE removes the board.
+//	@Description	Upserts the state board of one agent the caller may use. The agent may write here, unlike memory, which only the user deletes. version, when sent, is the version the caller read: a write carrying a version the row no longer holds answers 409 STATE_CONFLICT and changes nothing, so a stale writer cannot silently undo a newer board. Omitting version overwrites whatever is stored. content is markdown, at most 8000 characters, and blank is refused: DELETE removes the board.
 //	@Tags			memory
 //	@Security		BearerAuth
 //	@Accept			json

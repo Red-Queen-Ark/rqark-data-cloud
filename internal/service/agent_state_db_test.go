@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -14,13 +15,17 @@ import (
 )
 
 // agentStateTestDB opens the shared test database and installs the state table.
-// The table is new, so AutoMigrate writes its CHECK constraint on the way in.
+// The table may be left behind by an earlier run with a narrower CHECK, so the
+// content limit is migrated the way the server does it at startup.
 func agentStateTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
 	db := testDatabase(t)
 	if err := db.AutoMigrate(&repository.User{}, &repository.Agent{}, &repository.AgentState{}); err != nil {
 		t.Fatalf("automigrate agent state: %v", err)
+	}
+	if err := repository.MigrateAgentStateContentLimit(context.Background(), db); err != nil {
+		t.Fatalf("migrate agent state content limit: %v", err)
 	}
 	return db
 }
@@ -302,6 +307,47 @@ func TestAgentStateAutoMigrateIsRepeatable(t *testing.T) {
 	db := agentStateTestDB(t)
 	if err := db.AutoMigrate(&repository.AgentState{}); err != nil {
 		t.Fatalf("second automigrate: %v", err)
+	}
+}
+
+// TestMigrateAgentStateContentLimitWidensAnOldTable covers the upgrade path: a
+// table created under the old 2000-character ceiling is narrowed there by its
+// own constraint, and AutoMigrate alone never touches a constraint it finds by
+// name. The migration has to replace it, or every board over 2000 characters
+// stays rejected on a database that has been running.
+func TestMigrateAgentStateContentLimitWidensAnOldTable(t *testing.T) {
+	db := agentStateTestDB(t)
+	user, agent := testAgentStateOwner(t, db)
+
+	// Put the table back the way the previous release left it.
+	if err := db.Exec("ALTER TABLE agent_state DROP CONSTRAINT chk_agent_state_content_length").Error; err != nil {
+		t.Fatalf("drop the current constraint: %v", err)
+	}
+	if err := db.Exec("ALTER TABLE agent_state ADD CONSTRAINT chk_agent_state_content_length CHECK (char_length(content) BETWEEN 1 AND 2000)").Error; err != nil {
+		t.Fatalf("restore the old constraint: %v", err)
+	}
+
+	old := &repository.AgentState{UserID: user.ID, AgentID: agent.ID, Content: strings.Repeat("字", 2001)}
+	if err := db.Create(old).Error; err == nil {
+		t.Fatal("expected the old constraint to reject a 2001 character board")
+	}
+
+	if err := repository.MigrateAgentStateContentLimit(context.Background(), db); err != nil {
+		t.Fatalf("migrate the content limit: %v", err)
+	}
+
+	widened, err := SetAgentState(context.Background(), user.ID, SetAgentStateInput{AgentID: agent.ID, Content: strings.Repeat("字", repository.MaxStateContentLen)})
+	if err != nil {
+		t.Fatalf("write a board at the new ceiling: %v", err)
+	}
+	if utf8.RuneCountInString(widened.Content) != repository.MaxStateContentLen {
+		t.Fatalf("stored %d characters, want %d", utf8.RuneCountInString(widened.Content), repository.MaxStateContentLen)
+	}
+
+	// Running it again has to leave the same constraint, not fail on a name that
+	// is already taken.
+	if err := repository.MigrateAgentStateContentLimit(context.Background(), db); err != nil {
+		t.Fatalf("second migrate: %v", err)
 	}
 }
 
